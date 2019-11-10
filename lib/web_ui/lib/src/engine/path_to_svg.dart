@@ -19,8 +19,8 @@ void pathToSvg(ui.Path path, StringBuffer sb,
           final LineTo lineTo = command;
           sb.write('L ${lineTo.x + offsetX} ${lineTo.y + offsetY}');
           break;
-        case PathCommandTypes.bezierCurveTo:
-          final BezierCurveTo curve = command;
+        case PathCommandTypes.cubicCurveTo:
+          final CubicCurveTo curve = command;
           sb.write('C ${curve.x1 + offsetX} ${curve.y1 + offsetY} '
               '${curve.x2 + offsetX} ${curve.y2 + offsetY} ${curve.x3 + offsetX} ${curve.y3 + offsetY}');
           break;

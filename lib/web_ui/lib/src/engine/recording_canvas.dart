@@ -1166,7 +1166,7 @@ class PathCommandTypes {
   static const int ellipse = 2;
   static const int close = 3;
   static const int quadraticCurveTo = 4;
-  static const int bezierCurveTo = 5;
+  static const int cubicCurveTo = 5;
   static const int rect = 6;
   static const int rRect = 7;
 }
@@ -1424,7 +1424,7 @@ class QuadraticCurveTo extends PathCommand {
   }
 }
 
-class BezierCurveTo extends PathCommand {
+class CubicCurveTo extends PathCommand {
   final double x1;
   final double y1;
   final double x2;
@@ -1432,12 +1432,12 @@ class BezierCurveTo extends PathCommand {
   final double x3;
   final double y3;
 
-  const BezierCurveTo(this.x1, this.y1, this.x2, this.y2, this.x3, this.y3)
-      : super(PathCommandTypes.bezierCurveTo);
+  const CubicCurveTo(this.x1, this.y1, this.x2, this.y2, this.x3, this.y3)
+      : super(PathCommandTypes.cubicCurveTo);
 
   @override
-  BezierCurveTo shifted(ui.Offset offset) {
-    return BezierCurveTo(x1 + offset.dx, y1 + offset.dy, x2 + offset.dx,
+  CubicCurveTo shifted(ui.Offset offset) {
+    return CubicCurveTo(x1 + offset.dx, y1 + offset.dy, x2 + offset.dx,
         y2 + offset.dy, x3 + offset.dx, y3 + offset.dy);
   }
 
@@ -1467,7 +1467,7 @@ class BezierCurveTo extends PathCommand {
   @override
   String toString() {
     if (assertionsEnabled) {
-      return 'BezierCurveTo($x1, $y1, $x2, $y2, $x3, $y3)';
+      return 'CubicCurveTo($x1, $y1, $x2, $y2, $x3, $y3)';
     } else {
       return super.toString();
     }

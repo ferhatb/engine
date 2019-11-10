@@ -146,7 +146,7 @@ class Path {
   void cubicTo(
       double x1, double y1, double x2, double y2, double x3, double y3) {
     _ensurePathStarted();
-    _commands.add(engine.BezierCurveTo(x1, y1, x2, y2, x3, y3));
+    _commands.add(engine.CubicCurveTo(x1, y1, x2, y2, x3, y3));
     _setCurrentPoint(x3, y3);
   }
 
@@ -157,7 +157,7 @@ class Path {
   void relativeCubicTo(
       double x1, double y1, double x2, double y2, double x3, double y3) {
     _ensurePathStarted();
-    _commands.add(engine.BezierCurveTo(x1 + _currentX, y1 + _currentY,
+    _commands.add(engine.CubicCurveTo(x1 + _currentX, y1 + _currentY,
         x2 + _currentX, y2 + _currentY, x3 + _currentX, y3 + _currentY));
     _setCurrentPoint(x3 + _currentX, y3 + _currentY);
   }
@@ -819,8 +819,8 @@ class Path {
             curX = x2;
             curY = y2;
             break;
-          case engine.PathCommandTypes.bezierCurveTo:
-            final engine.BezierCurveTo cmd = op;
+          case engine.PathCommandTypes.cubicCurveTo:
+            final engine.CubicCurveTo cmd = op;
             final double startX = curX;
             final double startY = curY;
             final double cpX1 = cmd.x1;

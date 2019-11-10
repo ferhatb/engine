@@ -787,8 +787,8 @@ class BitmapCanvas extends EngineCanvas with SaveStackTracking {
     for (Subpath subpath in path.subpaths) {
       for (PathCommand command in subpath.commands) {
         switch (command.type) {
-          case PathCommandTypes.bezierCurveTo:
-            final BezierCurveTo curve = command;
+          case PathCommandTypes.cubicCurveTo:
+            final CubicCurveTo curve = command;
             ctx.bezierCurveTo(
                 curve.x1, curve.y1, curve.x2, curve.y2, curve.x3, curve.y3);
             break;
