@@ -207,7 +207,10 @@ class PathMetric {
           break;
         case engine.PathCommandTypes.ellipse:
           final engine.Ellipse ellipse = command;
-          distance = _computeEllipseSegments(currentX, currentY, ellipse);
+          distance = _computeEllipseSegments(currentX, currentY, distance,
+              ellipse.x, ellipse.y, ellipse.startAngle, ellipse.endAngle,
+              ellipse.rotation,
+              ellipse.radiusX, ellipse.radiusY, ellipse.anticlockwise);
           _isClosed = true;
           break;
         case engine.PathCommandTypes.rRect:
@@ -336,24 +339,116 @@ class PathMetric {
     return distance;
   }
 
-  double _computeEllipseSegments(double currentX, double currentY,
-      engine.Ellipse ellipse) {
+  // Create segments by converting arc to cubics.
+  // See http://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter.
+  double _computeEllipseSegments(double startX, double startY,
+      double distance, double endX, double endY,
+      double startAngle, double endAngle,
+      double rotation, double radiusX, double radiusY, bool anticlockwise) {
     // Convert arc to conics.
     const int _kMaxConicsForArc = 5;
-    if ((ellipse.radiusX == 0 || ellipse.radiusY == 0) ||
-        (currentX == ellipse.x && currentY == ellipse.y)) {
-      // add line segment from current to ellipse.x/y.
-      //return lineDist;
-      throw UnimplementedError();
+
+    // Check for http://www.w3.org/TR/SVG/implnote.html#ArcOutOfRangeParameters
+    // Treat as line segment from start to end if arc has zero radii.
+    // If start and end point are the same treat as zero length path.
+    if ((radiusX == 0 || radiusY == 0) ||
+        (startX == endX && startY == endY)) {
+      return distance;
     }
 
-    final double rx = ellipse.radiusX.abs();
-    final double ry = ellipse.radiusY.abs();
+    final double rxAbs = radiusX.abs();
+    final double ryAbs = radiusY.abs();
 
-    final double midPointX = (currentX - ellipse.x) / 2;
-    final double midPointY = (currentX - ellipse.x) / 2;
+    final double midPointDistX = (startX - endX) / 2;
+    final double midPointDistY = (startY - endY) / 2;
 
-    throw UnimplementedError();
+    // Rotate midpoint back by -startAngle.
+    double cosAngle = math.cos(-startAngle);
+    double sinAngle = math.sin(-startAngle);
+    final double midPointX = midPointDistX * cosAngle - midPointDistY * sinAngle;
+    final double midPointY = midPointDistX * sinAngle + midPointDistY * cosAngle;
+
+    final double rxSquare = rxAbs * rxAbs;
+    final double rySquare = ryAbs * ryAbs;
+    final double endXSquare = midPointX * midPointX;
+    final double endYSquare = midPointY * midPointY;
+
+    // Scale radii if it is not big enough to draw arc.
+    // http://www.w3.org/TR/SVG/implnote.html#ArcCorrectionOutOfRangeRadii
+    final double radiiScale = endXSquare / rxSquare + endYSquare / rySquare;
+    bool doScale = (radiiScale > 1.0);
+    final double rx = doScale ? rxAbs * math.sqrt(radiiScale) : rxAbs;
+    final double ry = doScale ? ryAbs * math.sqrt(radiiScale) : ryAbs;
+
+    // Now take start and end point and reverse transform by scaling down
+    // by rx,ry and rotating -startAngle.
+    final double scaledStartX = (startX / rx);
+    final double scaledStartY = (startY / ry);
+    final double point1X = scaledStartX * cosAngle - scaledStartY * sinAngle;
+    final double point1Y = scaledStartX * sinAngle + scaledStartY * cosAngle;
+    final double scaledEndX = (endX / rx);
+    final double scaledEndY = (endY / ry);
+    final double point2X = scaledEndX * cosAngle - scaledEndY * sinAngle;
+    final double point2Y = scaledEndX * sinAngle + scaledEndY * cosAngle;
+
+    double deltaX = point2X - point1X;
+    double deltaY = point2Y - point1Y;
+
+    final double d = deltaX * deltaX + deltaY * deltaY;
+    double scaleFactor = math.sqrt(math.max(1 /d - 0.25, 0.0));
+
+    bool isLargeArc = (endAngle - startAngle).abs() > math.pi;
+    if (isLargeArc == anticlockwise) {
+      scaleFactor = -scaleFactor;
+    }
+    deltaX *= scaleFactor;
+    deltaY *= scaleFactor;
+
+    double centerPointX = (point1X + point2X) / 2;
+    double centerPointY = (point1Y + point2Y) / 2;
+
+    centerPointX -= deltaY;
+    centerPointY += deltaX;
+
+    final double theta1 = math.atan2(point1Y - centerPointY, point1X - centerPointX);
+    final double theta2 = math.atan2(point2Y - centerPointY, point2X - centerPointX);
+
+    double thetaArc = theta2 - theta1;
+    if (thetaArc < 0 && anticlockwise) {
+      thetaArc += math.pi * 2;
+    } else if (thetaArc > 0 && !anticlockwise) {
+      thetaArc -= math.pi * 2;
+    }
+
+    // Add 0.01f aince atan2 implementations are sometimes not exact enough.
+    // This reduces number of segments.
+    int numSegments = (thetaArc / ((math.pi / 2.0) + 0.01)).abs().ceil();
+
+    double x0 = startX;
+    double y0 = startY;
+    for (int segmentIndex = 0; segmentIndex < numSegments; segmentIndex++) {
+      final double startTheta = theta1 + (segmentIndex * thetaArc / numSegments);
+      final double endTheta = theta1 + ((segmentIndex + 1 ) * thetaArc / numSegments);
+      final double t = (8.0 / 6.0) * math.tan(0.25 * (endTheta - startTheta));
+      if (!t.isFinite) {
+        return distance;
+      }
+      final double sinStartTheta = math.sin(startTheta);
+      final double cosStartTheta = math.cos(startTheta);
+      final double sinEndTheta = math.sin(endTheta);
+      final double cosEndTheta = math.cos(endTheta);
+
+      // Compute cubic segment start, control point and end (target).
+      final double p1x = (cosStartTheta - t * sinStartTheta) + centerPointX;
+      final double p1y = (sinStartTheta + t * cosStartTheta) + centerPointY;
+      final double targetPointX = cosEndTheta + centerPointX;
+      final double targetPointY = sinEndTheta + centerPointY;
+      final double p2x = targetPointX + (t * sinEndTheta);
+      final double p2y = targetPointY + (-t * cosEndTheta);
+
+      distance = _computeCubicSegments(x0, y0, p1x, p1y, p2x, p2y, targetPointX, targetPointY, distance, 0, _kMaxTValue);
+    }
+    return distance;
   }
 
   @override
