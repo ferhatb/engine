@@ -5,7 +5,7 @@
 part of engine;
 
 /// Enable this to print every command applied by a canvas.
-const bool _debugDumpPaintCommands = false;
+const bool _debugDumpPaintCommands = true;
 
 // Returns the squared length of the x, y (of a border radius)
 // It normalizes x, y values before working with them, by
@@ -214,6 +214,7 @@ class RecordingCanvas {
   }
 
   void drawRect(ui.Rect rect, ui.Paint paint) {
+    print('paint blendmode = ${paint.blendMode}');
     if (paint.shader != null) {
       _hasArbitraryPaint = true;
     }
