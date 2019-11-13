@@ -582,12 +582,9 @@ class BitmapCanvas extends EngineCanvas with SaveStackTracking {
     final HtmlImage htmlImage = image;
     final html.ImageElement imgElement = htmlImage.cloneImageElement();
     String blendMode = ctx.globalCompositeOperation;
-    if (blendMode == 'source-over') {
+    //if (blendMode == 'source-over') {
       imgElement.style.mixBlendMode = blendMode;
       _drawImage(imgElement, p);
-    } else {
-      ctx.drawImage(imgElement, p.dx, p.dy);
-    }
     _childOverdraw = true;
   }
 
@@ -627,22 +624,6 @@ class BitmapCanvas extends EngineCanvas with SaveStackTracking {
       final html.Element imgElement = htmlImage.cloneImageElement();
       final ui.BlendMode blendMode = paint.blendMode;
       imgElement.style.mixBlendMode = _stringForBlendMode(blendMode);
-
-      if (blendMode == null || blendMode == ui.BlendMode.srcOver) {
-        print('Calling drawImageScaledFromSource blendMode = ${paint.blendMode}');
-        ctx.drawImageScaledFromSource(
-          htmlImage.imgElement,
-          src.left,
-          src.top,
-          src.width,
-          src.height,
-          dst.left,
-          dst.top,
-          dst.width,
-          dst.height,
-        );
-      }
-
       if (requiresClipping) {
         save();
         clipRect(dst);
