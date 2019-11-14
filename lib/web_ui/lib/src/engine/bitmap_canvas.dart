@@ -724,7 +724,6 @@ class BitmapCanvas extends EngineCanvas with SaveStackTracking {
 
     final html.Element paragraphElement =
         _drawParagraphElement(paragraph, offset);
-
     if (isClipped) {
       final List<html.Element> clipElements =
           _clipContent(_clipStack, paragraphElement, offset, currentTransform);
@@ -734,7 +733,7 @@ class BitmapCanvas extends EngineCanvas with SaveStackTracking {
       }
     } else {
       final String cssTransform =
-          matrix4ToCssTransform(transformWithOffset(currentTransform, offset));
+          matrix4ToCssTransform3d(transformWithOffset(currentTransform, offset));
       paragraphElement.style
         ..transformOrigin = '0 0 0'
         ..transform = cssTransform;
@@ -1022,6 +1021,6 @@ List<html.Element> _clipContent(List<_SaveClipEntry> clipStack,
 
 String _cssTransformAtOffset(
     Matrix4 transform, double offsetX, double offsetY) {
-  return matrix4ToCssTransform(
+  return matrix4ToCssTransform3d(
       transformWithOffset(transform, ui.Offset(offsetX, offsetY)));
 }
