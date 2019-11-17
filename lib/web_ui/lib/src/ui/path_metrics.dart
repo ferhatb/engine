@@ -78,6 +78,7 @@ class PathMetric {
   // Iterator index into [Path.subPaths]
   int _subPathIndex = 0;
   List<_PathSegment> _segments;
+  double _contourLength;
 
   /// Create a new empty [Path] object.
   PathMetric._(this._path, this._forceClosed) {
@@ -85,7 +86,7 @@ class PathMetric {
   }
 
   /// Return the total length of the current contour.
-  double get length => throw UnimplementedError();
+  double get length => _contourLength;
 
   /// Computes the position of hte current contour at the given offset, and the
   /// angle of the path at that point.
@@ -157,6 +158,21 @@ class PathMetric {
     final engine.Subpath subpath = _path.subpaths[_subPathIndex];
     final List<engine.PathCommand> commands = subpath.commands;
     double currentX = 0.0, currentY = 0.0;
+    final Function lineToHandler = (double x, double y) {
+      final double dx = currentX - x;
+      final double dy = currentY - y;
+      final double prevDistance = distance;
+      distance += math.sqrt(dx * dx + dy * dy);
+      // As we accumulate distance, we have to check that the result of +=
+      // actually made it larger, since a very small delta might be > 0, but
+      // still have no effect on distance (if distance >>> delta).
+      if (distance > prevDistance) {
+        _segments.add(_PathSegment(engine.PathCommandTypes.lineTo, distance,
+            [currentX, currentY, x, y]));
+      }
+      currentX = x;
+      currentY = y;
+    };
     for (engine.PathCommand command in commands) {
       switch (command.type) {
         case engine.PathCommandTypes.moveTo:
@@ -164,21 +180,12 @@ class PathMetric {
           currentX = moveTo.x;
           currentY = moveTo.y;
           _isClosed = true;
+          haveSeenMoveTo = true;
           break;
         case engine.PathCommandTypes.lineTo:
           assert(haveSeenMoveTo);
           final engine.LineTo lineTo = command;
-          final double dx = currentX - lineTo.x;
-          final double dy = currentY - lineTo.y;
-          final double prevDistance = distance;
-          distance += math.sqrt(dx * dx + dy * dy);
-          // As we accumulate distance, we have to check that the result of +=
-          // actually made it larger, since a very small delta might be > 0, but
-          // still have no effect on distance (if distance >>> delta).
-          if (distance > prevDistance) {
-            _segments.add(_PathSegment(engine.PathCommandTypes.lineTo, distance,
-                [currentX, currentY, lineTo.x, lineTo.y]));
-          }
+          lineToHandler(lineTo.x, lineTo.y);
           break;
         case engine.PathCommandTypes.bezierCurveTo:
           assert(haveSeenMoveTo);
@@ -216,19 +223,45 @@ class PathMetric {
         case engine.PathCommandTypes.rRect:
           final engine.RRectCommand rrectCommand = command;
           final RRect rrect = rrectCommand.rrect;
+          engine.RRectMetricsRenderer(
+              moveToCallback: (double x, double y) {
+                currentX = x;
+                currentY = y;
+                _isClosed = true;
+                haveSeenMoveTo = true;
+              },
+              lineToCallback: (double x, double y) {
+                lineToHandler(x, y);
+              },
+              ellipseCallback: (double centerX, double centerY, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, bool antiClockwise) {
+                distance = _computeEllipseSegments(currentX, currentY, distance,
+                    centerX, centerY, startAngle, endAngle, rotation,
+                    radiusX, radiusY, antiClockwise);
+              }).render(rrect);
           _isClosed = true;
           break;
         case engine.PathCommandTypes.rect:
           final engine.RectCommand rectCommand = command;
+          final double x = rectCommand.x;
+          final double y = rectCommand.y;
+          final double width = rectCommand.width;
+          final double height = rectCommand.height;
+          currentX = x;
+          currentY = y;
+          lineToHandler(x + width, y);
+          lineToHandler(x + width, y + height);
+          lineToHandler(x, y + height);
+          lineToHandler(x, y);
           _isClosed = true;
           break;
         default:
           throw UnimplementedError('Unknown path command $command');
       }
     }
+    _contourLength = distance;
   }
 
-  static bool _tspan_big_enough(int tSpan) => (tSpan >> 10) != 0;
+  static bool _tspanBigEnough(int tSpan) => (tSpan >> 10) != 0;
 
   static bool _cubicTooCurvy(
       double x0, double y0, double x1, double y1, double x2, double y2,
@@ -261,7 +294,7 @@ class PathMetric {
   // Recursively subdivides cubic and adds segments.
   double _computeCubicSegments(double x0, double y0, double x1, double y1,
       double x2, double y2, double x3, double y3, double distance, int tMin, int tMax) {
-    if (_tspan_big_enough(tMax - tMin) &&
+    if (_tspanBigEnough(tMax - tMin) &&
         _cubicTooCurvy(x0, y0, x1, y1, x2, y2, x3, y3)) {
       // Chop cubic into two halves (De Cateljau's algorithm)
       // See https://en.wikipedia.org/wiki/De_Casteljau%27s_algorithm
@@ -290,7 +323,7 @@ class PathMetric {
       distance += startToEndDistance;
       if (distance > prevDistance) {
         _segments.add(_PathSegment(engine.PathCommandTypes.bezierCurveTo,
-            distance, [x0, y0, x1, y1, x2, y2, x3, y3]));
+            distance, <double>[x0, y0, x1, y1, x2, y2, x3, y3]));
       }
     }
     return distance;
@@ -312,7 +345,7 @@ class PathMetric {
 
   double _computeQuadSegments(double x0, double y0, double x1, double y1,
       double x2, double y2, double distance, int tMin, int tMax) {
-    if (_tspan_big_enough(tMax - tMin) &&
+    if (_tspanBigEnough(tMax - tMin) &&
         _quadTooCurvy(x0, y0, x1, y1, x2, y2)) {
       final double p01x = (x0 + x1) / 2;
       final double p01y = (y0 + y1) / 2;
@@ -333,7 +366,7 @@ class PathMetric {
       distance += startToEndDistance;
       if (distance > prevDistance) {
         _segments.add(_PathSegment(engine.PathCommandTypes.quadraticCurveTo,
-            distance, [x0, y0, x1, y1, x2, y2]));
+            distance, <double>[x0, y0, x1, y1, x2, y2]));
       }
     }
     return distance;
@@ -342,12 +375,12 @@ class PathMetric {
   // Create segments by converting arc to cubics.
   // See http://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter.
   double _computeEllipseSegments(double startX, double startY,
-      double distance, double endX, double endY,
+      double distance, double cx, double cy,
       double startAngle, double endAngle,
       double rotation, double radiusX, double radiusY, bool anticlockwise) {
-    // Convert arc to conics.
-    const int _kMaxConicsForArc = 5;
 
+    final double endX = cx + (radiusX * math.cos(endAngle));
+    final double endY = cy + (radiusY * math.sin(endAngle));
     // Check for http://www.w3.org/TR/SVG/implnote.html#ArcOutOfRangeParameters
     // Treat as line segment from start to end if arc has zero radii.
     // If start and end point are the same treat as zero length path.
@@ -355,81 +388,22 @@ class PathMetric {
         (startX == endX && startY == endY)) {
       return distance;
     }
-
     final double rxAbs = radiusX.abs();
     final double ryAbs = radiusY.abs();
 
-    final double midPointDistX = (startX - endX) / 2;
-    final double midPointDistY = (startY - endY) / 2;
+    final double theta1 = startAngle;
+    final double theta2 = endAngle;
+    final double thetaArc = theta2 - theta1;
 
-    // Rotate midpoint back by -startAngle.
-    double cosAngle = math.cos(-startAngle);
-    double sinAngle = math.sin(-startAngle);
-    final double midPointX = midPointDistX * cosAngle - midPointDistY * sinAngle;
-    final double midPointY = midPointDistX * sinAngle + midPointDistY * cosAngle;
-
-    final double rxSquare = rxAbs * rxAbs;
-    final double rySquare = ryAbs * ryAbs;
-    final double endXSquare = midPointX * midPointX;
-    final double endYSquare = midPointY * midPointY;
-
-    // Scale radii if it is not big enough to draw arc.
-    // http://www.w3.org/TR/SVG/implnote.html#ArcCorrectionOutOfRangeRadii
-    final double radiiScale = endXSquare / rxSquare + endYSquare / rySquare;
-    bool doScale = (radiiScale > 1.0);
-    final double rx = doScale ? rxAbs * math.sqrt(radiiScale) : rxAbs;
-    final double ry = doScale ? ryAbs * math.sqrt(radiiScale) : ryAbs;
-
-    // Now take start and end point and reverse transform by scaling down
-    // by rx,ry and rotating -startAngle.
-    final double scaledStartX = (startX / rx);
-    final double scaledStartY = (startY / ry);
-    final double point1X = scaledStartX * cosAngle - scaledStartY * sinAngle;
-    final double point1Y = scaledStartX * sinAngle + scaledStartY * cosAngle;
-    final double scaledEndX = (endX / rx);
-    final double scaledEndY = (endY / ry);
-    final double point2X = scaledEndX * cosAngle - scaledEndY * sinAngle;
-    final double point2Y = scaledEndX * sinAngle + scaledEndY * cosAngle;
-
-    double deltaX = point2X - point1X;
-    double deltaY = point2Y - point1Y;
-
-    final double d = deltaX * deltaX + deltaY * deltaY;
-    double scaleFactor = math.sqrt(math.max(1 /d - 0.25, 0.0));
-
-    bool isLargeArc = (endAngle - startAngle).abs() > math.pi;
-    if (isLargeArc == anticlockwise) {
-      scaleFactor = -scaleFactor;
-    }
-    deltaX *= scaleFactor;
-    deltaY *= scaleFactor;
-
-    double centerPointX = (point1X + point2X) / 2;
-    double centerPointY = (point1Y + point2Y) / 2;
-
-    centerPointX -= deltaY;
-    centerPointY += deltaX;
-
-    final double theta1 = math.atan2(point1Y - centerPointY, point1X - centerPointX);
-    final double theta2 = math.atan2(point2Y - centerPointY, point2X - centerPointX);
-
-    double thetaArc = theta2 - theta1;
-    if (thetaArc < 0 && anticlockwise) {
-      thetaArc += math.pi * 2;
-    } else if (thetaArc > 0 && !anticlockwise) {
-      thetaArc -= math.pi * 2;
-    }
-
-    // Add 0.01f aince atan2 implementations are sometimes not exact enough.
-    // This reduces number of segments.
-    int numSegments = (thetaArc / ((math.pi / 2.0) + 0.01)).abs().ceil();
-
+    // Add 0.01f to make sure we have enough segments when thetaArc is close
+    // to pi/2.
+    final int numSegments = (thetaArc / ((math.pi / 2.0) + 0.01)).abs().ceil();
     double x0 = startX;
     double y0 = startY;
     for (int segmentIndex = 0; segmentIndex < numSegments; segmentIndex++) {
       final double startTheta = theta1 + (segmentIndex * thetaArc / numSegments);
       final double endTheta = theta1 + ((segmentIndex + 1 ) * thetaArc / numSegments);
-      final double t = (8.0 / 6.0) * math.tan(0.25 * (endTheta - startTheta));
+      final double t = (4.0 / 3.0) * math.tan((endTheta - startTheta) / 4);
       if (!t.isFinite) {
         return distance;
       }
@@ -439,14 +413,16 @@ class PathMetric {
       final double cosEndTheta = math.cos(endTheta);
 
       // Compute cubic segment start, control point and end (target).
-      final double p1x = (cosStartTheta - t * sinStartTheta) + centerPointX;
-      final double p1y = (sinStartTheta + t * cosStartTheta) + centerPointY;
-      final double targetPointX = cosEndTheta + centerPointX;
-      final double targetPointY = sinEndTheta + centerPointY;
-      final double p2x = targetPointX + (t * sinEndTheta);
-      final double p2y = targetPointY + (-t * cosEndTheta);
+      final double p1x = rxAbs * (cosStartTheta - t * sinStartTheta) + cx;
+      final double p1y = ryAbs * (sinStartTheta + t * cosStartTheta) + cy;
+      final double targetPointX = rxAbs * cosEndTheta + cx;
+      final double targetPointY = ryAbs * sinEndTheta + cy;
+      final double p2x = targetPointX + rxAbs * (t * sinEndTheta);
+      final double p2y = targetPointY + ryAbs * (-t * cosEndTheta);
 
       distance = _computeCubicSegments(x0, y0, p1x, p1y, p2x, p2y, targetPointX, targetPointY, distance, 0, _kMaxTValue);
+      x0 = targetPointX;
+      y0 = targetPointY;
     }
     return distance;
   }
