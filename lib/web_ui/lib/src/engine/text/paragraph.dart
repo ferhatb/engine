@@ -165,7 +165,8 @@ class EngineParagraph implements ui.Paragraph {
     } else {
       canDrawTextOnCanvas = _measurementResult.isSingleLine &&
           _plainText != null &&
-          _geometricStyle.ellipsis == null;
+          _geometricStyle.ellipsis == null &&
+          _geometricStyle.shadows == null;
     }
 
     return canDrawTextOnCanvas &&
@@ -906,6 +907,7 @@ class EngineParagraphBuilder implements ui.ParagraphBuilder {
           wordSpacing: wordSpacing,
           decoration: _textDecorationToCssString(decoration, decorationStyle),
           ellipsis: _paragraphStyle._ellipsis,
+          shadows: shadows,
         ),
         plainText: '',
         paint: paint,
@@ -959,6 +961,7 @@ class EngineParagraphBuilder implements ui.ParagraphBuilder {
         wordSpacing: wordSpacing,
         decoration: _textDecorationToCssString(decoration, decorationStyle),
         ellipsis: _paragraphStyle._ellipsis,
+        shadows: shadows,
       ),
       plainText: plainText,
       paint: paint,
