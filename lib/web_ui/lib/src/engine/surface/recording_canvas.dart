@@ -31,7 +31,7 @@ class RecordingCanvas {
   /// Whether this canvas is doing arbitrary paint operations not expressible
   /// via DOM elements.
   bool get hasArbitraryPaint => _hasArbitraryPaint;
-  bool _hasArbitraryPaint = false;
+  bool _hasArbitraryPaint = true;
 
   /// Forces arbitrary paint even for simple pictures.
   ///

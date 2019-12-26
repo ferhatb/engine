@@ -1,15 +1,25 @@
 part of engine;
 
-class _CanvasPool {
+class _CanvasPool extends _SaveStackTracking {
   html.CanvasElement _canvas;
   html.CanvasRenderingContext2D _context;
   ContextStateHandle _contextHandle;
-  ui.Rect _bounds;
   bool _contextSaved = false;
+  // Number of allocated canvas elements.
+  int _instanceCount = 0;
+
+  html.HtmlElement _rootElement;
+  int _widthInPixels, _heightInPixels;
+  ui.Offset initialTransform;
 
   html.CanvasRenderingContext2D get context {
     if (_contextHandle == null) {
-      _context = _canvas.context2D;
+      if (_canvas == null) {
+        _createCanvas();
+        _context.translate(initialTransform.dx, initialTransform.dy);
+      } else {
+        _context = _canvas.context2D;
+      }
       _contextHandle = ContextStateHandle(_context);
     }
     return _context;
@@ -18,28 +28,100 @@ class _CanvasPool {
   ContextStateHandle get contextHandle => _contextHandle;
 
   void allocateCanvas(html.HtmlElement rootElement,
-      int _widthInBitmapPixels, int _heightInBitmapPixels,
-      ui.Rect bounds) {
-    _bounds = bounds;
+      int _widthInBitmapPixels, int _heightInBitmapPixels) {
+    _rootElement = rootElement;
+    _widthInPixels = _widthInBitmapPixels;
+    _heightInPixels = _heightInBitmapPixels;
+  }
+
+  void _createCanvas() {
+    ++_instanceCount;
     // Compute the final CSS canvas size given the actual pixel count we
     // allocated. This is done for the following reasons:
     //
     // * To satisfy the invariant: pixel size = css size * device pixel ratio.
     // * To make sure that when we scale the canvas by devicePixelRatio (see
     //   _initializeViewport below) the pixels line up.
-    final double cssWidth = _widthInBitmapPixels / html.window.devicePixelRatio;
+    final double cssWidth = _widthInPixels / html.window.devicePixelRatio;
     final double cssHeight =
-        _heightInBitmapPixels / html.window.devicePixelRatio;
+        _heightInPixels / html.window.devicePixelRatio;
     _canvas = html.CanvasElement(
-      width: _widthInBitmapPixels,
-      height: _heightInBitmapPixels,
+      width: _widthInPixels,
+      height: _heightInPixels,
     );
     _canvas.style
       ..position = 'absolute'
       ..width = '${cssWidth}px'
       ..height = '${cssHeight}px';
-    rootElement.append(_canvas);
+    _rootElement.append(_canvas);
+    initializeViewport(_widthInPixels, _heightInPixels);
+    // Replay save/clip stack on this canvas now.
+    _context = _canvas.context2D;
+    html.CanvasRenderingContext2D ctx = _context;
+    int clipDepth = 0;
+    for (int saveStackIndex = 0, len = _saveStack.length; saveStackIndex < len;
+        saveStackIndex++) {
+      _SaveStackEntry saveEntry = _saveStack[saveStackIndex];
+      Matrix4 matrix4 = saveEntry.transform;
+      if (!matrix4.isIdentity()) {
+        ctx.setTransform(matrix4[0], matrix4[1], matrix4[4], matrix4[5],
+            matrix4[12], matrix4[13]);
+      }
+      final List<_SaveClipEntry> clipStack = saveEntry.clipStack;
+      if (saveEntry.clipStack != null) {
+        for (int clipCount = clipStack.length; clipDepth < clipCount; clipDepth++) {
+          _SaveClipEntry clipEntry = clipStack[clipDepth];
+          if (clipEntry.rect != null) {
+            _clipRect(ctx, clipEntry.rect);
+          } else if (clipEntry.rrect != null) {
+            _clipRRect(ctx, clipEntry.rrect);
+          } else if (clipEntry.path != null) {
+            _runPath(ctx, clipEntry.path);
+            ctx.clip();
+          }
+        }
+      }
+      ctx.save();
+    }
+    if (_currentTransform != null && !(_currentTransform.isIdentity())) {
+      ctx.setTransform(_currentTransform[0], _currentTransform[1], _currentTransform[4], _currentTransform[5],
+          _currentTransform[12], _currentTransform[13]);
+    }
+    if (_clipStack.length > clipDepth) {
+      for (int clipCount = _clipStack.length; clipDepth < clipCount; clipDepth++) {
+        _SaveClipEntry clipEntry = _clipStack[clipDepth];
+        if (clipEntry.rect != null) {
+          _clipRect(ctx, clipEntry.rect);
+        } else if (clipEntry.rrect != null) {
+          _clipRRect(ctx, clipEntry.rrect);
+        } else if (clipEntry.path != null) {
+          _runPath(ctx, clipEntry.path);
+          ctx.clip();
+        }
+      }
+    }
+  }
+
+  void reuse(int _widthInBitmapPixels, int _heightInBitmapPixels) {
+    clear();
+    if (_canvas == null) return;
+    // Restore to the state where we have only applied the scaling.
     initializeViewport(_widthInBitmapPixels, _heightInBitmapPixels);
+    contextHandle.reset();
+    html.CanvasRenderingContext2D ctx = context;
+    if (ctx != null) {
+      try {
+        ctx.font = '';
+      } catch (e) {
+        // Firefox may explode here:
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=941146
+        if (!_isNsErrorFailureException(e)) {
+          rethrow;
+        }
+      }
+    }
+    resetTransform();
+    ctx.translate(initialTransform.dx, initialTransform.dy);
   }
 
   /// Configures the canvas such that its coordinate system follows the scene's
@@ -80,46 +162,113 @@ class _CanvasPool {
   // canvas.
   String toDataUrl() => _canvas.toDataUrl();
 
+  @override
   void save() {
-    context.save();
+    super.save();
+    if (_canvas != null) {
+      context.save();
+    }
   }
 
+  @override
   void restore() {
-    context.restore();
-    contextHandle.reset();
+    super.restore();
+    if (_canvas != null) {
+      context.restore();
+      contextHandle.reset();
+    }
   }
 
   void translate(double dx, double dy) {
-    context.translate(dx, dy);
+    super.translate(dx, dy);
+    if (_canvas != null) {
+      context.translate(dx, dy);
+    }
   }
 
   void scale(double sx, double sy) {
-    context.scale(sx, sy);
+    super.scale(sx, sy);
+    if (_canvas != null) {
+      context.scale(sx, sy);
+    }
   }
 
   void rotate(double radians) {
-    context.rotate(radians);
+    super.rotate(radians);
+    if (_canvas != null) {
+      context.rotate(radians);
+    }
   }
 
-  void transform(double a, double b, double c, double d, double e, double f) {
-    context.transform(a, b, c, d, e, f);
+  void skew(double sx, double sy) {
+    super.skew(sx, sy);
+    if (_canvas != null) {
+      context.transform(1, sy, sx, 1, 0, 0);
+      //                |  |   |   |  |  |
+      //                |  |   |   |  |  f - vertical translation
+      //                |  |   |   |  e - horizontal translation
+      //                |  |   |   d - vertical scaling
+      //                |  |   c - horizontal skewing
+      //                |  b - vertical skewing
+      //                a - horizontal scaling
+      //
+      // Source: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/transform
+    }
+  }
+
+  @override
+  void transform(Float64List matrix4) {
+    super.transform(matrix4);
+    // Canvas2D transform API:
+    //
+    // ctx.transform(a, b, c, d, e, f);
+    //
+    // In 3x3 matrix form assuming vector representation of (x, y, 1):
+    //
+    // a c e
+    // b d f
+    // 0 0 1
+    //
+    // This translates to 4x4 matrix with vector representation of (x, y, z, 1)
+    // as:
+    //
+    // a c 0 e
+    // b d 0 f
+    // 0 0 1 0
+    // 0 0 0 1
+    //
+    // This matrix is sufficient to represent 2D rotates, translates, scales,
+    // and skews.
+    if (_canvas != null) {
+      context.transform(matrix4[0], matrix4[1], matrix4[4], matrix4[5],
+          matrix4[12], matrix4[13]);
+    }
   }
 
   void clipRect(ui.Rect rect) {
-    html.CanvasRenderingContext2D ctx = context;
+    super.clipRect(rect);
+    _clipRect(context, rect);
+  }
+
+  void _clipRect(html.CanvasRenderingContext2D ctx, ui.Rect rect) {
     ctx.beginPath();
     ctx.rect(rect.left, rect.top, rect.width, rect.height);
     ctx.clip();
   }
 
   void clipRRect(ui.RRect rrect) {
-    html.CanvasRenderingContext2D ctx = context;
+    super.clipRRect(rrect);
+    _clipRRect(context, rrect);
+  }
+
+  void _clipRRect(html.CanvasRenderingContext2D ctx, ui.RRect rrect) {
     final ui.Path path = ui.Path()..addRRect(rrect);
     _runPath(ctx, path);
     ctx.clip();
   }
 
   void clipPath(ui.Path path) {
+    super.clipPath(path);
     html.CanvasRenderingContext2D ctx = context;
     _runPath(ctx, path);
     ctx.clip();
@@ -407,5 +556,119 @@ class ContextStateHandle {
     _currentStrokeCap = ui.StrokeCap.butt;
     context.lineJoin = 'miter';
     _currentStrokeJoin = ui.StrokeJoin.miter;
+  }
+}
+
+/// Provides save stack tracking functionality to implementation.
+class _SaveStackTracking {
+  static final Vector3 _unitZ = Vector3(0.0, 0.0, 1.0);
+
+  final List<_SaveStackEntry> _saveStack = <_SaveStackEntry>[];
+
+  /// The stack that maintains clipping operations used when text is painted
+  /// onto bitmap canvas but is composited as separate element.
+  List<_SaveClipEntry> _clipStack;
+
+  /// Returns whether there are active clipping regions on the canvas.
+  bool get isClipped => _clipStack != null;
+
+  /// Empties the save stack and the element stack, and resets the transform
+  /// and clip parameters.
+  ///
+  /// Classes that override this method must call `super.clear()`.
+  void clear() {
+    _saveStack.clear();
+    _clipStack = null;
+    _currentTransform = Matrix4.identity();
+  }
+
+  /// The current transformation matrix.
+  Matrix4 get currentTransform => _currentTransform;
+  Matrix4 _currentTransform = Matrix4.identity();
+
+  /// Saves current clip and transform on the save stack.
+  ///
+  /// Classes that override this method must call `super.save()`.
+  void save() {
+    _saveStack.add(_SaveStackEntry(
+      transform: _currentTransform.clone(),
+      clipStack:
+      _clipStack == null ? null : List<_SaveClipEntry>.from(_clipStack),
+    ));
+  }
+
+  /// Restores current clip and transform from the save stack.
+  ///
+  /// Classes that override this method must call `super.restore()`.
+  void restore() {
+    if (_saveStack.isEmpty) {
+      return;
+    }
+    final _SaveStackEntry entry = _saveStack.removeLast();
+    _currentTransform = entry.transform;
+    _clipStack = entry.clipStack;
+  }
+
+  /// Multiplies the [currentTransform] matrix by a translation.
+  ///
+  /// Classes that override this method must call `super.translate()`.
+  void translate(double dx, double dy) {
+    _currentTransform.translate(dx, dy);
+  }
+
+  /// Scales the [currentTransform] matrix.
+  ///
+  /// Classes that override this method must call `super.scale()`.
+  void scale(double sx, double sy) {
+    _currentTransform.scale(sx, sy);
+  }
+
+  /// Rotates the [currentTransform] matrix.
+  ///
+  /// Classes that override this method must call `super.rotate()`.
+  void rotate(double radians) {
+    _currentTransform.rotate(_unitZ, radians);
+  }
+
+  /// Skews the [currentTransform] matrix.
+  ///
+  /// Classes that override this method must call `super.skew()`.
+  void skew(double sx, double sy) {
+    final Matrix4 skewMatrix = Matrix4.identity();
+    final Float64List storage = skewMatrix.storage;
+    storage[1] = sy;
+    storage[4] = sx;
+    _currentTransform.multiply(skewMatrix);
+  }
+
+  /// Multiplies the [currentTransform] matrix by another matrix.
+  ///
+  /// Classes that override this method must call `super.transform()`.
+  void transform(Float64List matrix4) {
+    _currentTransform.multiply(Matrix4.fromFloat64List(matrix4));
+  }
+
+  /// Adds a rectangle to clipping stack.
+  ///
+  /// Classes that override this method must call `super.clipRect()`.
+  void clipRect(ui.Rect rect) {
+    _clipStack ??= <_SaveClipEntry>[];
+    _clipStack.add(_SaveClipEntry.rect(rect, _currentTransform.clone()));
+  }
+
+  /// Adds a round rectangle to clipping stack.
+  ///
+  /// Classes that override this method must call `super.clipRRect()`.
+  void clipRRect(ui.RRect rrect) {
+    _clipStack ??= <_SaveClipEntry>[];
+    _clipStack.add(_SaveClipEntry.rrect(rrect, _currentTransform.clone()));
+  }
+
+  /// Adds a path to clipping stack.
+  ///
+  /// Classes that override this method must call `super.clipPath()`.
+  void clipPath(ui.Path path) {
+    _clipStack ??= <_SaveClipEntry>[];
+    _clipStack.add(_SaveClipEntry.path(path, _currentTransform.clone()));
   }
 }
