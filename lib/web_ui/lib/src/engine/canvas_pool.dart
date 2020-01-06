@@ -4,6 +4,21 @@
 
 part of engine;
 
+/// Allocates and caches 0 or more canvas(s) for [BitmapCanvas].
+///
+/// [BitmapCanvas] signals allocation of first canvas using allocateCanvas.
+/// When a painting command such as drawImage or drawParagraph requires
+/// multiple canvases for correct compositing, it calls allocateExtraCanvas and
+/// adds the canvas(s) to a [_pool] of active canvas(s).
+///
+/// To make sure transformations and clips are preserved correctly when a new
+/// canvas is allocated, [_CanvasPool] replays the current stack on the newly
+/// allocated canvas. It also maintains a [_saveContextCount] so that
+/// the context stack can be reinitialized to default when reused in the future.
+///
+/// On a subsequent repaint, when a Picture determines that a [BitmapCanvas]
+/// can be reused, [_CanvasPool] will move canvas(s) from pool to reusablePool
+/// to prevent reallocation.
 class _CanvasPool extends _SaveStackTracking {
   html.CanvasElement _canvas;
   html.CanvasRenderingContext2D _context;
@@ -35,7 +50,7 @@ class _CanvasPool extends _SaveStackTracking {
   }
 
   // Allocating extra canvas items. Save current canvas so we can dispose
-  // and reply the clip/transform stack on top of new canvas.
+  // and replay the clip/transform stack on top of new canvas.
   void allocateExtraCanvas() {
     assert(_rootElement != null);
     // Place clean copy of current canvas with context stack restored and paint
@@ -58,8 +73,7 @@ class _CanvasPool extends _SaveStackTracking {
   void _createCanvas() {
     bool requiresClearRect = false;
     if (_reusablePool != null && _reusablePool.isNotEmpty) {
-      _canvas = _reusablePool[0];
-      _reusablePool.removeAt(0);
+      _canvas = _reusablePool.removeAt(0);
       requiresClearRect = true;
     } else {
       // Compute the final CSS canvas size given the actual pixel count we
