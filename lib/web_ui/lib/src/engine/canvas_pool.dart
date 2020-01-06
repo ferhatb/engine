@@ -20,12 +20,15 @@ part of engine;
 /// can be reused, [_CanvasPool] will move canvas(s) from pool to reusablePool
 /// to prevent reallocation.
 class _CanvasPool extends _SaveStackTracking {
-  html.CanvasElement _canvas;
   html.CanvasRenderingContext2D _context;
   ContextStateHandle _contextHandle;
   final int _widthInBitmapPixels, _heightInBitmapPixels;
+  // List of canvases that have been allocated and used in this paint cycle.
   List<html.CanvasElement> _pool;
+  // List of canvases available to reuse from prior paint cycle.
   List<html.CanvasElement> _reusablePool;
+  // Current canvas element or null if marked for lazy allocation.
+  html.CanvasElement _canvas;
   html.HtmlElement _rootElement;
   int _saveContextCount = 0;
 
@@ -99,10 +102,10 @@ class _CanvasPool extends _SaveStackTracking {
     _context = _canvas.context2D;
     _contextHandle = ContextStateHandle(_context);
     _initializeViewport();
-    //if (requiresClearRect) {
+    if (requiresClearRect) {
       // Now that the context is reset, clear old contents.
-    _context.clearRect(0, 0, _widthInBitmapPixels, _heightInBitmapPixels);
-    //}
+      _context.clearRect(0, 0, _widthInBitmapPixels, _heightInBitmapPixels);
+    }
     _replayClipStack();
   }
 
@@ -133,42 +136,15 @@ class _CanvasPool extends _SaveStackTracking {
     translate(transform.dx, transform.dy);
   }
 
-  void _replayClipStack() {
-    // Replay save/clip stack on this canvas now.
-    html.CanvasRenderingContext2D ctx = _context;
-    int clipDepth = 0;
-    for (int saveStackIndex = 0, len = _saveStack.length; saveStackIndex < len;
-    saveStackIndex++) {
-      _SaveStackEntry saveEntry = _saveStack[saveStackIndex];
-      Matrix4 matrix4 = saveEntry.transform;
-      if (!matrix4.isIdentity()) {
-        ctx.setTransform(matrix4[0], matrix4[1], matrix4[4], matrix4[5],
-            matrix4[12], matrix4[13]);
-      }
-      final List<_SaveClipEntry> clipStack = saveEntry.clipStack;
-      if (saveEntry.clipStack != null) {
-        for (int clipCount = clipStack.length; clipDepth < clipCount; clipDepth++) {
-          _SaveClipEntry clipEntry = clipStack[clipDepth];
-          if (clipEntry.rect != null) {
-            _clipRect(ctx, clipEntry.rect);
-          } else if (clipEntry.rrect != null) {
-            _clipRRect(ctx, clipEntry.rrect);
-          } else if (clipEntry.path != null) {
-            _runPath(ctx, clipEntry.path);
-            ctx.clip();
-          }
-        }
-      }
-      ctx.save();
-      ++_saveContextCount;
+  int _replaySingleSaveEntry(int clipDepth, Matrix4 transform, List<_SaveClipEntry> clipStack) {
+    final html.CanvasRenderingContext2D ctx = _context;
+    if (!transform.isIdentity()) {
+      ctx.setTransform(transform[0], transform[1], transform[4], transform[5],
+          transform[12], transform[13]);
     }
-    if (_currentTransform != null && !(_currentTransform.isIdentity())) {
-      ctx.setTransform(_currentTransform[0], _currentTransform[1], _currentTransform[4], _currentTransform[5],
-          _currentTransform[12], _currentTransform[13]);
-    }
-    if (_clipStack != null && _clipStack.length > clipDepth) {
-      for (int clipCount = _clipStack.length; clipDepth < clipCount; clipDepth++) {
-        _SaveClipEntry clipEntry = _clipStack[clipDepth];
+    if (clipStack != null) {
+      for (int clipCount = clipStack.length; clipDepth < clipCount; clipDepth++) {
+        _SaveClipEntry clipEntry = clipStack[clipDepth];
         if (clipEntry.rect != null) {
           _clipRect(ctx, clipEntry.rect);
         } else if (clipEntry.rrect != null) {
@@ -179,6 +155,22 @@ class _CanvasPool extends _SaveStackTracking {
         }
       }
     }
+    return clipDepth;
+  }
+
+  void _replayClipStack() {
+    // Replay save/clip stack on this canvas now.
+    html.CanvasRenderingContext2D ctx = _context;
+    int clipDepth = 0;
+    for (int saveStackIndex = 0, len = _saveStack.length; saveStackIndex < len;
+    saveStackIndex++) {
+      _SaveStackEntry saveEntry = _saveStack[saveStackIndex];
+      clipDepth = _replaySingleSaveEntry(clipDepth, saveEntry.transform,
+          saveEntry.clipStack);
+      ctx.save();
+      ++_saveContextCount;
+    }
+    _replaySingleSaveEntry(clipDepth, _currentTransform, _clipStack);
   }
 
   // Marks this pool for reuse.
@@ -373,12 +365,12 @@ class _CanvasPool extends _SaveStackTracking {
   void drawColor(ui.Color color, ui.BlendMode blendMode) {
     html.CanvasRenderingContext2D ctx = context;
     contextHandle.blendMode = blendMode;
+    contextHandle.fillStyle = color.toCssString();
+    contextHandle.strokeStyle = '';
     // Fill a virtually infinite rect with the color.
     //
     // We can't use (0, 0, width, height) because the current transform can
     // cause it to not fill the entire clip.
-    contextHandle.fillStyle = color.toCssString();
-    contextHandle.strokeStyle = '';
     ctx.fillRect(-10000, -10000, 20000, 20000);
   }
 
@@ -580,14 +572,12 @@ class ContextStateHandle {
   Object _currentStrokeStyle;
   double _currentLineWidth = 1.0;
   String _currentFilter = 'none';
-  bool _secondaryAttributesDirty = false;
 
   set blendMode(ui.BlendMode blendMode) {
     if (blendMode != _currentBlendMode) {
       _currentBlendMode = blendMode;
       context.globalCompositeOperation =
           _stringForBlendMode(blendMode) ?? 'source-over';
-      _secondaryAttributesDirty = true;
     }
   }
 
@@ -596,7 +586,6 @@ class ContextStateHandle {
     if (strokeCap != _currentStrokeCap) {
       _currentStrokeCap = strokeCap;
       context.lineCap = _stringForStrokeCap(strokeCap);
-      _secondaryAttributesDirty = true;
     }
   }
 
@@ -604,7 +593,6 @@ class ContextStateHandle {
     if (lineWidth != _currentLineWidth) {
       _currentLineWidth = lineWidth;
       context.lineWidth = lineWidth;
-      _secondaryAttributesDirty = true;
     }
   }
 
@@ -613,7 +601,6 @@ class ContextStateHandle {
     if (strokeJoin != _currentStrokeJoin) {
       _currentStrokeJoin = strokeJoin;
       context.lineJoin = _stringForStrokeJoin(strokeJoin);
-      _secondaryAttributesDirty = true;
     }
   }
 
@@ -635,7 +622,6 @@ class ContextStateHandle {
     if (_currentFilter != filter) {
       _currentFilter = filter;
       context.filter = filter;
-      _secondaryAttributesDirty = true;
     }
   }
 
@@ -668,6 +654,7 @@ class ContextStateHandle {
 /// Provides save stack tracking functionality to implementations of
 /// [EngineCanvas].
 class _SaveStackTracking {
+  // !Warning: this vector should not be mutated.
   static final Vector3 _unitZ = Vector3(0.0, 0.0, 1.0);
 
   final List<_SaveStackEntry> _saveStack = <_SaveStackEntry>[];
@@ -681,8 +668,7 @@ class _SaveStackTracking {
 
   /// Empties the save stack and the element stack, and resets the transform
   /// and clip parameters.
-  ///
-  /// Classes that override this method must call `super.clear()`.
+  @mustCallSuper
   void clear() {
     _saveStack.clear();
     _clipStack = null;
@@ -694,8 +680,7 @@ class _SaveStackTracking {
   Matrix4 _currentTransform = Matrix4.identity();
 
   /// Saves current clip and transform on the save stack.
-  ///
-  /// Classes that override this method must call `super.save()`.
+  @mustCallSuper
   void save() {
     _saveStack.add(_SaveStackEntry(
       transform: _currentTransform.clone(),
@@ -705,8 +690,7 @@ class _SaveStackTracking {
   }
 
   /// Restores current clip and transform from the save stack.
-  ///
-  /// Classes that override this method must call `super.restore()`.
+  @mustCallSuper
   void restore() {
     if (_saveStack.isEmpty) {
       return;
@@ -717,29 +701,25 @@ class _SaveStackTracking {
   }
 
   /// Multiplies the [currentTransform] matrix by a translation.
-  ///
-  /// Classes that override this method must call `super.translate()`.
+  @mustCallSuper
   void translate(double dx, double dy) {
     _currentTransform.translate(dx, dy);
   }
 
   /// Scales the [currentTransform] matrix.
-  ///
-  /// Classes that override this method must call `super.scale()`.
+  @mustCallSuper
   void scale(double sx, double sy) {
     _currentTransform.scale(sx, sy);
   }
 
   /// Rotates the [currentTransform] matrix.
-  ///
-  /// Classes that override this method must call `super.rotate()`.
+  @mustCallSuper
   void rotate(double radians) {
     _currentTransform.rotate(_unitZ, radians);
   }
 
   /// Skews the [currentTransform] matrix.
-  ///
-  /// Classes that override this method must call `super.skew()`.
+  @mustCallSuper
   void skew(double sx, double sy) {
     final Matrix4 skewMatrix = Matrix4.identity();
     final Float64List storage = skewMatrix.storage;
@@ -749,31 +729,27 @@ class _SaveStackTracking {
   }
 
   /// Multiplies the [currentTransform] matrix by another matrix.
-  ///
-  /// Classes that override this method must call `super.transform()`.
+  @mustCallSuper
   void transform(Float64List matrix4) {
     _currentTransform.multiply(Matrix4.fromFloat64List(matrix4));
   }
 
   /// Adds a rectangle to clipping stack.
-  ///
-  /// Classes that override this method must call `super.clipRect()`.
+  @mustCallSuper
   void clipRect(ui.Rect rect) {
     _clipStack ??= <_SaveClipEntry>[];
     _clipStack.add(_SaveClipEntry.rect(rect, _currentTransform.clone()));
   }
 
   /// Adds a round rectangle to clipping stack.
-  ///
-  /// Classes that override this method must call `super.clipRRect()`.
+  @mustCallSuper
   void clipRRect(ui.RRect rrect) {
     _clipStack ??= <_SaveClipEntry>[];
     _clipStack.add(_SaveClipEntry.rrect(rrect, _currentTransform.clone()));
   }
 
   /// Adds a path to clipping stack.
-  ///
-  /// Classes that override this method must call `super.clipPath()`.
+  @mustCallSuper
   void clipPath(ui.Path path) {
     _clipStack ??= <_SaveClipEntry>[];
     _clipStack.add(_SaveClipEntry.path(path, _currentTransform.clone()));

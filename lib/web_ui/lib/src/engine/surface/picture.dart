@@ -172,7 +172,7 @@ class PersistedStandardPicture extends PersistedPicture {
         final int newPixelCount = BitmapCanvas._widthToPhysical(_exactLocalCullRect.width)
              * BitmapCanvas._heightToPhysical(_exactLocalCullRect.height);
         final int oldPixelCount =
-            oldCanvas.widthInBitmapPixels * oldCanvas.heightInBitmapPixels;
+            oldCanvas._widthInBitmapPixels * oldCanvas._heightInBitmapPixels;
 
         if (oldPixelCount == 0) {
           return 1.0;
@@ -320,7 +320,7 @@ class PersistedStandardPicture extends PersistedPicture {
       _surfaceStatsFor(this)
         ..allocateBitmapCanvasCount += 1
         ..allocatedBitmapSizeInPixels =
-            canvas.widthInBitmapPixels * canvas.heightInBitmapPixels;
+            canvas._widthInBitmapPixels * canvas._heightInBitmapPixels;
     }
     return canvas;
   }

@@ -182,5 +182,6 @@ class DomCanvas extends EngineCanvas with SaveElementStackTracking {
 
   @override
   void endOfPaint() {
+    // No reuse of elements yet to handle here. Noop.
   }
 }

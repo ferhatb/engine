@@ -50,7 +50,6 @@ class BitmapCanvas extends EngineCanvas {
   ///
   /// These pixels are different from the logical CSS pixels. Here a pixel
   /// literally means 1 point with a RGBA color.
-  int get widthInBitmapPixels => _widthInBitmapPixels;
   final int _widthInBitmapPixels;
 
   /// The number of pixels along the width of the bitmap that the canvas element
@@ -58,14 +57,13 @@ class BitmapCanvas extends EngineCanvas {
   ///
   /// These pixels are different from the logical CSS pixels. Here a pixel
   /// literally means 1 point with a RGBA color.
-  int get heightInBitmapPixels => _heightInBitmapPixels;
   final int _heightInBitmapPixels;
 
   /// The number of pixels in the bitmap that the canvas element renders into.
   ///
   /// These pixels are different from the logical CSS pixels. Here a pixel
   /// literally means 1 point with a RGBA color.
-  int get bitmapPixelCount => widthInBitmapPixels * heightInBitmapPixels;
+  int get bitmapPixelCount => _widthInBitmapPixels * _heightInBitmapPixels;
 
   int _saveCount = 0;
 
@@ -115,7 +113,8 @@ class BitmapCanvas extends EngineCanvas {
     // initial translation so the paint operations are positioned as expected.
     //
     // The flooring of the value is to ensure that canvas' top-left corner
-    // lands on the physical pixel.
+    // lands on the physical pixel. TODO: !This is not accurate if there are
+    // transforms higher up in the stack.
     rootElement.style.transform =
       'translate(${_canvasPositionX}px, ${_canvasPositionY}px)';
   }
