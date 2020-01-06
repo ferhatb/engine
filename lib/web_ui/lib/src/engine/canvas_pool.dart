@@ -11,40 +11,51 @@ class _CanvasPool extends _SaveStackTracking {
   final int _widthInBitmapPixels, _heightInBitmapPixels;
   List<html.CanvasElement> _pool;
   List<html.CanvasElement> _reusablePool;
+  html.HtmlElement _rootElement;
   int _saveContextCount = 0;
 
   _CanvasPool(this._widthInBitmapPixels, this._heightInBitmapPixels);
 
   html.CanvasRenderingContext2D get context {
-    if (_contextHandle == null) {
-      _context = _canvas.context2D;
-      _contextHandle = ContextStateHandle(_context);
+    if (_canvas == null) {
+      _createCanvas();
+      assert(_context != null);
+      assert(_canvas != null);
     }
     return _context;
   }
 
-  ContextStateHandle get contextHandle => _contextHandle;
+  ContextStateHandle get contextHandle {
+    if (_canvas == null) {
+      _createCanvas();
+      assert(_context != null);
+      assert(_canvas != null);
+    }
+    return _contextHandle;
+  }
 
   // Allocating extra canvas items. Save current canvas so we can dispose
   // and reply the clip/transform stack on top of new canvas.
   void allocateExtraCanvas() {
-    html.HtmlElement prevRoot = _canvas.parent;
-    assert(prevRoot != null);
+    assert(_rootElement != null);
     // Place clean copy of current canvas with context stack restored and paint
     // reset into pool.
-    _restoreContextSave();
-    _contextHandle.reset();
-    _pool ??= [];
-    _pool.add(_canvas);
-    _canvas = null;
-    _context = null;
-    _contextHandle = null;
-    allocateCanvas(prevRoot, _widthInBitmapPixels, _heightInBitmapPixels);
-    _replayClipStack();
+    if (_canvas != null) {
+      _restoreContextSave();
+      _contextHandle.reset();
+      _pool ??= [];
+      _pool.add(_canvas);
+      _canvas = null;
+      _context = null;
+      _contextHandle = null;
+    }
   }
 
-  void allocateCanvas(html.HtmlElement rootElement,
-      int widthInBitmapPixels, int heightInBitmapPixels) {
+  void allocateCanvas(html.HtmlElement rootElement) {
+    _rootElement = rootElement;
+  }
+
+  void _createCanvas() {
     bool requiresClearRect = false;
     if (_reusablePool != null && _reusablePool.isNotEmpty) {
       _canvas = _reusablePool[0];
@@ -57,30 +68,55 @@ class _CanvasPool extends _SaveStackTracking {
       // * To satisfy the invariant: pixel size = css size * device pixel ratio.
       // * To make sure that when we scale the canvas by devicePixelRatio (see
       //   _initializeViewport below) the pixels line up.
-      final double cssWidth = widthInBitmapPixels /
+      final double cssWidth = _widthInBitmapPixels /
           html.window.devicePixelRatio;
       final double cssHeight =
-          heightInBitmapPixels / html.window.devicePixelRatio;
+          _heightInBitmapPixels / html.window.devicePixelRatio;
       _canvas = html.CanvasElement(
-        width: widthInBitmapPixels,
-        height: heightInBitmapPixels,
+        width: _widthInBitmapPixels,
+        height: _heightInBitmapPixels,
       );
       _canvas.style
         ..position = 'absolute'
         ..width = '${cssWidth}px'
         ..height = '${cssHeight}px';
     }
-    rootElement.append(_canvas);
-    _initializeViewport(widthInBitmapPixels, heightInBitmapPixels);
-    if (requiresClearRect) {
+    _rootElement.append(_canvas);
+    _context = _canvas.context2D;
+    _contextHandle = ContextStateHandle(_context);
+    _initializeViewport();
+    //if (requiresClearRect) {
       // Now that the context is reset, clear old contents.
-      context.clearRect(0, 0, _widthInBitmapPixels, _heightInBitmapPixels);
-    }
+    _context.clearRect(0, 0, _widthInBitmapPixels, _heightInBitmapPixels);
+    //}
+    _replayClipStack();
   }
 
   @override
   void clear() {
     super.clear();
+
+    if (_canvas != null) {
+      // Restore to the state where we have only applied the scaling.
+      html.CanvasRenderingContext2D ctx = _context;
+      if (ctx != null) {
+        try {
+          ctx.font = '';
+        } catch (e) {
+          // Firefox may explode here:
+          // https://bugzilla.mozilla.org/show_bug.cgi?id=941146
+          if (!_isNsErrorFailureException(e)) {
+            rethrow;
+          }
+        }
+      }
+    }
+    reuse();
+    resetTransform();
+  }
+
+  set initialTransform(ui.Offset transform) {
+    translate(transform.dx, transform.dy);
   }
 
   void _replayClipStack() {
@@ -136,20 +172,16 @@ class _CanvasPool extends _SaveStackTracking {
     if (_canvas != null) {
       _restoreContextSave();
       _contextHandle.reset();
+      _pool ??= [];
+      _pool.add(_canvas);
       _context = null;
       _contextHandle = null;
     }
-    if (_pool != null) {
-      _pool.add(_canvas);
-      _reusablePool = _pool;
-      _canvas = _reusablePool[0];
-      _reusablePool.removeAt(0);
-      _pool = null;
-      final html.HtmlElement rootElement = _canvas.parent;
-      rootElement.append(_canvas);
-    }
-    _initializeViewport(_widthInBitmapPixels, _heightInBitmapPixels);
-    context.clearRect(0, 0, _widthInBitmapPixels, _heightInBitmapPixels);
+    _reusablePool = _pool;
+    _pool = null;
+    _canvas = null;
+    _context = null;
+    _contextHandle = null;
   }
 
   void endOfPaint() {
@@ -173,7 +205,7 @@ class _CanvasPool extends _SaveStackTracking {
   /// Configures the canvas such that its coordinate system follows the scene's
   /// coordinate system, and the pixel ratio is applied such that CSS pixels are
   /// translated to bitmap pixels.
-  void _initializeViewport(int widthInBitmapPixels, int heightInBitmapPixels) {
+  void _initializeViewport() {
     html.CanvasRenderingContext2D ctx = context;
     // Save the canvas state with top-level transforms so we can undo
     // any clips later when we reuse the canvas.
@@ -203,50 +235,61 @@ class _CanvasPool extends _SaveStackTracking {
   @override
   void save() {
     super.save();
-    context.save();
-    ++_saveContextCount;
+    if (_canvas != null) {
+      context.save();
+      ++_saveContextCount;
+    }
   }
 
   @override
   void restore() {
     super.restore();
-    context.restore();
-    contextHandle.reset();
-    --_saveContextCount;
+    if (_canvas != null) {
+      context.restore();
+      contextHandle.reset();
+      --_saveContextCount;
+    }
   }
 
   @override
   void translate(double dx, double dy) {
     super.translate(dx, dy);
-    context.translate(dx, dy);
+    if (_canvas != null) {
+      context.translate(dx, dy);
+    }
   }
 
   @override
   void scale(double sx, double sy) {
     super.scale(sx, sy);
-    context.scale(sx, sy);
+    if (_canvas != null) {
+      context.scale(sx, sy);
+    }
   }
 
   @override
   void rotate(double radians) {
     super.rotate(radians);
-    context.rotate(radians);
+    if (_canvas != null) {
+      context.rotate(radians);
+    }
   }
 
   @override
   void skew(double sx, double sy) {
     super.skew(sx, sy);
-    context.transform(1, sy, sx, 1, 0, 0);
-    //                |  |   |   |  |  |
-    //                |  |   |   |  |  f - vertical translation
-    //                |  |   |   |  e - horizontal translation
-    //                |  |   |   d - vertical scaling
-    //                |  |   c - horizontal skewing
-    //                |  b - vertical skewing
-    //                a - horizontal scaling
-    //
-    // Source: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/transform
-
+    if (_canvas != null) {
+      context.transform(1, sy, sx, 1, 0, 0);
+      //                |  |   |   |  |  |
+      //                |  |   |   |  |  f - vertical translation
+      //                |  |   |   |  e - horizontal translation
+      //                |  |   |   d - vertical scaling
+      //                |  |   c - horizontal skewing
+      //                |  b - vertical skewing
+      //                a - horizontal scaling
+      //
+      // Source: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/transform
+    }
   }
 
   @override
@@ -272,13 +315,17 @@ class _CanvasPool extends _SaveStackTracking {
     //
     // This matrix is sufficient to represent 2D rotates, translates, scales,
     // and skews.
-    context.transform(matrix4[0], matrix4[1], matrix4[4], matrix4[5],
-        matrix4[12], matrix4[13]);
+    if (_canvas != null) {
+      context.transform(matrix4[0], matrix4[1], matrix4[4], matrix4[5],
+          matrix4[12], matrix4[13]);
+    }
   }
 
   void clipRect(ui.Rect rect) {
     super.clipRect(rect);
-    _clipRect(context, rect);
+    if (_canvas != null) {
+      _clipRect(context, rect);
+    }
   }
 
   void _clipRect(html.CanvasRenderingContext2D ctx, ui.Rect rect) {
@@ -289,7 +336,9 @@ class _CanvasPool extends _SaveStackTracking {
 
   void clipRRect(ui.RRect rrect) {
     super.clipRRect(rrect);
-    _clipRRect(context, rrect);
+    if (_canvas != null) {
+      _clipRRect(context, rrect);
+    }
   }
 
   void _clipRRect(html.CanvasRenderingContext2D ctx, ui.RRect rrect) {
@@ -300,9 +349,11 @@ class _CanvasPool extends _SaveStackTracking {
 
   void clipPath(ui.Path path) {
     super.clipPath(path);
-    html.CanvasRenderingContext2D ctx = context;
-    _runPath(ctx, path);
-    ctx.clip();
+    if (_canvas != null) {
+      html.CanvasRenderingContext2D ctx = context;
+      _runPath(ctx, path);
+      ctx.clip();
+    }
   }
 
   void drawColor(ui.Color color, ui.BlendMode blendMode) {
@@ -481,7 +532,7 @@ class _CanvasPool extends _SaveStackTracking {
     // towards the threshold. Setting width and height to zero tricks Webkit
     // into thinking that this canvas has a zero size so it doesn't count it
     // towards the threshold.
-    if (browserEngine == BrowserEngine.webkit) {
+    if (browserEngine == BrowserEngine.webkit && _canvas != null) {
       _canvas.width = _canvas.height = 0;
     }
     _clearPool();

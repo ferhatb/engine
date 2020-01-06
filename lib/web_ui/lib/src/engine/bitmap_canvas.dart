@@ -104,8 +104,7 @@ class BitmapCanvas extends EngineCanvas {
     _canvasPositionX = _bounds.left.floor() - kPaddingPixels;
     _canvasPositionY = _bounds.top.floor() - kPaddingPixels;
     _updateRootElementTransform();
-    _canvasPool.allocateCanvas(rootElement, _widthInBitmapPixels,
-        _heightInBitmapPixels);
+    _canvasPool.allocateCanvas(rootElement);
     _setupInitialTransform();
   }
 
@@ -127,7 +126,7 @@ class BitmapCanvas extends EngineCanvas {
     final double canvasPositionCorrectionY =
         _bounds.top - BitmapCanvas.kPaddingPixels - _canvasPositionY.toDouble();
     // This compensates for the translate on the `rootElement`.
-    translate(
+    _canvasPool.initialTransform = ui.Offset(
       -_bounds.left + canvasPositionCorrectionX + BitmapCanvas.kPaddingPixels,
       -_bounds.top + canvasPositionCorrectionY + BitmapCanvas.kPaddingPixels,
     );
@@ -167,23 +166,7 @@ class BitmapCanvas extends EngineCanvas {
     }
     _children.clear();
     _cachedLastStyle = null;
-    // Restore to the state where we have only applied the scaling.
-    html.CanvasRenderingContext2D ctx = _canvasPool.context;
-    if (ctx != null) {
-      try {
-        ctx.font = '';
-      } catch (e) {
-        // Firefox may explode here:
-        // https://bugzilla.mozilla.org/show_bug.cgi?id=941146
-        if (!_isNsErrorFailureException(e)) {
-          rethrow;
-        }
-      }
-      _canvasPool.reuse();
-      _setupInitialTransform();
-      _canvasPool.contextHandle.reset();
-    }
-    _canvasPool.resetTransform();
+    _setupInitialTransform();
   }
 
   /// Checks whether this [BitmapCanvas] can still be recycled and reused.
@@ -359,10 +342,10 @@ class BitmapCanvas extends EngineCanvas {
 
   @override
   void drawImage(ui.Image image, ui.Offset p, SurfacePaintData paint) {
-    _applyPaint(paint);
+    //_applyPaint(paint);
     final HtmlImage htmlImage = image;
     final html.ImageElement imgElement = htmlImage.cloneImageElement();
-    String blendMode = _canvasPool.context.globalCompositeOperation;
+    String blendMode = _stringForBlendMode(paint.blendMode);
     imgElement.style.mixBlendMode = blendMode;
     _drawImage(imgElement, p);
     _childOverdraw = true;
