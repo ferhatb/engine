@@ -1,4 +1,4 @@
-Signature: 592eea93cb473b3219d7c7ca52e0e91b
+Signature: 0974d63c1886a9a3b4632a88cf1d0ae7
 
 UNUSED LICENSES:
 
@@ -1589,7 +1589,6 @@ FILE: ../../../third_party/skia/samplecode/SampleStrokePath.cpp
 FILE: ../../../third_party/skia/samplecode/SampleStrokeRect.cpp
 FILE: ../../../third_party/skia/samplecode/SampleTextBox.cpp
 FILE: ../../../third_party/skia/samplecode/SampleTextEffects.cpp
-FILE: ../../../third_party/skia/samplecode/SampleTextureDomain.cpp
 FILE: ../../../third_party/skia/samplecode/SampleVertices.cpp
 FILE: ../../../third_party/skia/samplecode/SampleWritePixels.cpp
 FILE: ../../../third_party/skia/samplecode/SampleXfermodesBlur.cpp
@@ -2081,8 +2080,6 @@ FILE: ../../../third_party/skia/src/gpu/GrSurface.cpp
 FILE: ../../../third_party/skia/src/gpu/GrSurface.h
 FILE: ../../../third_party/skia/src/gpu/effects/GrGaussianConvolutionFragmentProcessor.cpp
 FILE: ../../../third_party/skia/src/gpu/effects/GrGaussianConvolutionFragmentProcessor.h
-FILE: ../../../third_party/skia/src/gpu/effects/GrTextureDomain.cpp
-FILE: ../../../third_party/skia/src/gpu/effects/GrTextureDomain.h
 FILE: ../../../third_party/skia/src/gpu/gl/GrGLCaps.cpp
 FILE: ../../../third_party/skia/src/gpu/gl/GrGLCaps.h
 FILE: ../../../third_party/skia/src/gpu/gl/GrGLPath.cpp
@@ -5638,7 +5635,6 @@ FILE: ../../../third_party/skia/modules/sksg/include/SkSGDashEffect.h
 FILE: ../../../third_party/skia/modules/sksg/src/SkSGDashEffect.cpp
 FILE: ../../../third_party/skia/modules/skshaper/src/SkShaper_coretext.cpp
 FILE: ../../../third_party/skia/samplecode/Sample3D.cpp
-FILE: ../../../third_party/skia/src/core/SkCanvasMatrix.h
 FILE: ../../../third_party/skia/src/core/SkColorFilterPriv.h
 FILE: ../../../third_party/skia/src/core/SkCompressedDataUtils.cpp
 FILE: ../../../third_party/skia/src/core/SkCompressedDataUtils.h
