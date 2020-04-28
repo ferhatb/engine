@@ -253,6 +253,13 @@ class DomRenderer {
           '{ margin: 0; }',
           sheet.cssRules.length);
     }
+//    // Sets persistent surface element's positioning to absolute to prevent
+//    // script time for setting inline styles.
+//    sheet.insertRule(
+//      'flt-transform, flt-offset {'
+//      '  position: absolute'
+//      '}'
+//    );
 
     // This undoes browser's default painting and layout attributes of range
     // input, which is used in semantics.

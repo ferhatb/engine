@@ -33,7 +33,7 @@ class PersistedOffset extends PersistedContainerSurface
 
   @override
   html.Element createElement() {
-    return defaultCreateElement('flt-offset')..style.transformOrigin = '0 0 0';
+    return defaultCreateElement('flt-offset');
   }
 
   @override

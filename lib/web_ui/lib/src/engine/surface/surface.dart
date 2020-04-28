@@ -61,11 +61,7 @@ void commitScene(PersistedScene scene) {
       // Sort paint requests in decreasing canvas size order. Paint requests
       // attempt to reuse canvases. For efficiency we want the biggest pictures
       // to find canvases before the smaller ones claim them.
-      _paintQueue.sort((_PaintRequest a, _PaintRequest b) {
-        final double aSize = a.canvasSize.height * a.canvasSize.width;
-        final double bSize = b.canvasSize.height * b.canvasSize.width;
-        return bSize.compareTo(aSize);
-      });
+      _paintQueue.sort(_comparePaintRequestSize);
     }
 
     for (_PaintRequest request in _paintQueue) {
@@ -111,6 +107,14 @@ void commitScene(PersistedScene scene) {
     _debugFrameNumber++;
     return true;
   }());
+}
+
+int _comparePaintRequestSize(_PaintRequest a, _PaintRequest b) {
+  final ui.Size canvasSizeA = a.canvasSize;
+  final ui.Size canvasSizeB = b.canvasSize;
+  final double aSize = canvasSizeA.height * canvasSizeA.width;
+  final double bSize = canvasSizeB.height * canvasSizeB.width;
+  return bSize.compareTo(aSize);
 }
 
 /// Signature of a function that receives a [PersistedSurface].
@@ -502,6 +506,17 @@ abstract class PersistedSurface implements ui.EngineLayer {
     return element;
   }
 
+  /// Creates a DOM element for this surface preconfigured with debug
+  /// information. Used by surfaces that don't require absolute
+  /// positioning.
+  html.Element defaultCreateBaseElement(String tagName) {
+    final html.Element element = html.Element.tag(tagName);
+    if (assertionsEnabled) {
+      element.setAttribute('flt-layer-state', 'new');
+    }
+    return element;
+  }
+
   /// Sets the HTML and CSS properties appropriate for this surface's
   /// implementation.
   ///
@@ -719,17 +734,28 @@ abstract class PersistedContainerSurface extends PersistedSurface {
     assert(runtimeType == oldSurface.runtimeType);
     super.update(oldSurface);
     assert(debugAssertSurfaceState(oldSurface, PersistedSurfaceState.released));
-
-    if (oldSurface._children.isEmpty) {
+    final int oldChildCount = oldSurface._children.length;
+    if (oldChildCount == 0) {
+      //_outputCount('zeroToMany');
       _updateZeroToMany(oldSurface);
-    } else if (_children.length == 1) {
-      _updateManyToOne(oldSurface);
-    } else if (_children.isEmpty) {
-      _discardActiveChildren(oldSurface);
     } else {
-      _updateManyToMany(oldSurface);
+      final int newChildCount = _children.length;
+      if (newChildCount == 1) {
+        if (oldChildCount == 1) {
+          //_outputCount('oneToOne');
+          _updateOneToOne(oldSurface);
+        } else {
+          //_outputCount('manyToOne');
+          _updateManyToOne(oldSurface);
+        }
+      } else if (newChildCount == 0) {
+        //_outputCount('discard');
+        _discardActiveChildren(oldSurface);
+      } else {
+        //_outputCount('manyToMany');
+        _updateManyToMany(oldSurface);
+      }
     }
-
     if (assertionsEnabled) {
       _debugValidateContainerUpdate(oldSurface);
     }
@@ -813,7 +839,87 @@ abstract class PersistedContainerSurface extends PersistedSurface {
     }
   }
 
+  /// Called to release single child that was not reused this frame.
+  static void _discardActiveChild(PersistedContainerSurface surface) {
+    assert(surface._children.length == 1);
+    final PersistedSurface child = surface._children[0];
+    if (child.isActive) {
+      child.discard();
+    }
+    assert(!child.isCreated && !child.isActive);
+  }
+
   /// This is a fast path update for the common case when there's only one child
+  /// active in this frame and prior.
+  void _updateOneToOne(PersistedContainerSurface oldSurface) {
+    assert(_children.length == 1);
+    assert(oldSurface._children.length == 1);
+    final PersistedSurface newChild = _children[0];
+
+    // Retained child is moved to the correct location in the tree; all others
+    // are released.
+    if (newChild.isPendingRetention) {
+      assert(newChild.rootElement != null);
+
+      // Move the HTML node if necessary.
+      if (newChild.rootElement.parent != childContainer) {
+        childContainer.append(newChild.rootElement);
+      }
+
+      newChild.retain();
+
+      _discardActiveChild(oldSurface);
+      assert(debugAssertSurfaceState(
+          newChild, PersistedSurfaceState.pendingRetention));
+      return;
+    }
+
+    // Updated child is moved to the correct location in the tree; all others
+    // are released.
+    if (newChild is PersistedContainerSurface && newChild.oldLayer != null) {
+      assert(debugAssertSurfaceState(
+          newChild.oldLayer, PersistedSurfaceState.pendingUpdate));
+      assert(newChild.rootElement == null);
+      assert(newChild.oldLayer.rootElement != null);
+
+      final PersistedContainerSurface oldLayer = newChild.oldLayer;
+
+      // Move the HTML node if necessary.
+      if (oldLayer.rootElement.parent != childContainer) {
+        childContainer.append(oldLayer.rootElement);
+      }
+
+      newChild.update(oldLayer);
+      _discardActiveChild(oldSurface);
+      assert(debugAssertSurfaceState(oldLayer, PersistedSurfaceState.released));
+      assert(debugAssertSurfaceState(newChild, PersistedSurfaceState.active));
+      return;
+    }
+    assert(debugAssertSurfaceState(newChild, PersistedSurfaceState.created));
+
+    final PersistedSurface candidate = oldSurface._children[0];
+    if (newChild.canUpdateAsMatch(candidate)) {
+      assert(debugAssertSurfaceState(candidate, PersistedSurfaceState.active));
+      newChild.update(candidate);
+
+      // Move the HTML node if necessary.
+      if (newChild.rootElement.parent != childContainer) {
+        childContainer.append(newChild.rootElement);
+      }
+      assert(
+      debugAssertSurfaceState(candidate, PersistedSurfaceState.released));
+    } else {
+      newChild.build();
+      childContainer.append(newChild.rootElement);
+      assert(debugAssertSurfaceState(newChild, PersistedSurfaceState.active));
+      if (candidate.isActive) {
+        candidate.discard();
+      }
+      assert(!candidate.isCreated && !candidate.isActive);
+    }
+  }
+
+    /// This is a fast path update for the common case when there's only one child
   /// active in this frame.
   void _updateManyToOne(PersistedContainerSurface oldSurface) {
     assert(_children.length == 1);
@@ -863,8 +969,10 @@ abstract class PersistedContainerSurface extends PersistedSurface {
 
     PersistedSurface bestMatch;
     double bestScore = 2.0;
-    for (int i = 0; i < oldSurface._children.length; i++) {
-      final PersistedSurface candidate = oldSurface._children[i];
+    final List<PersistedSurface> oldChildren = oldSurface._children;
+    final int oldChildrenLength = oldChildren.length;
+    for (int i = 0; i < oldChildrenLength; i++) {
+      final PersistedSurface candidate = oldChildren[i];
       if (!newChild.canUpdateAsMatch(candidate)) {
         continue;
       }
@@ -894,8 +1002,8 @@ abstract class PersistedContainerSurface extends PersistedSurface {
 
     // Child nodes that were not used this frame that are still active and not
     // explicitly retained or updated are discarded.
-    for (int i = 0; i < oldSurface._children.length; i++) {
-      final PersistedSurface oldChild = oldSurface._children[i];
+    for (int i = 0, len = oldChildrenLength; i < oldChildrenLength; i++) {
+      final PersistedSurface oldChild = oldChildren[i];
       if (!identical(oldChild, bestMatch) && oldChild.isActive) {
         oldChild.discard();
       }
@@ -1037,13 +1145,11 @@ abstract class PersistedContainerSurface extends PersistedSurface {
       }
     }
 
-    allMatches.sort((_PersistedSurfaceMatch m1, _PersistedSurfaceMatch m2) {
-      return m1.matchQuality.compareTo(m2.matchQuality);
-    });
+    allMatches.sort(_compareMatchQuality);
 
     final Map<PersistedSurface, PersistedSurface> result =
         <PersistedSurface, PersistedSurface>{};
-    for (int i = 0; i < allMatches.length; i += 1) {
+    for (int i = 0, len = allMatches.length; i < len; i++) {
       final _PersistedSurfaceMatch match = allMatches[i];
       // This may be null if it has been claimed.
       final PersistedSurface matchedChild = oldChildren[match.oldChildIndex];
@@ -1056,6 +1162,10 @@ abstract class PersistedContainerSurface extends PersistedSurface {
     assert(result.length == Set<PersistedSurface>.from(result.values).length);
     return result;
   }
+
+  static int _compareMatchQuality(_PersistedSurfaceMatch m1,
+      _PersistedSurfaceMatch m2) =>
+        m1.matchQuality.compareTo(m2.matchQuality);
 
   @override
   void retain() {
@@ -1129,4 +1239,25 @@ class _PersistedSurfaceMatch {
   /// The score of how well [newChild] matched the old child as computed by
   /// [PersistedSurface.matchForUpdate].
   final double matchQuality;
+}
+
+bool _debugOutputScheduled = false;
+Map<String, int> _debugOutputMap = <String, int>{};
+
+void _outputCount(String message) {
+  if (_debugOutputMap.containsKey(message)) {
+    _debugOutputMap[message] = _debugOutputMap[message] + 1;
+  } else {
+    _debugOutputMap[message] = 1;
+  }
+  if (_debugOutputScheduled) {
+    return;
+  }
+  _debugOutputScheduled = true;
+  Timer(const Duration(seconds: 10), () {
+    _debugOutputScheduled = false;
+    _debugOutputMap.forEach((String key, int value) {
+      print('$key $value');
+    });
+  });
 }

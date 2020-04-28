@@ -8,10 +8,12 @@ part of engine;
 /// A surface that transforms its children using CSS transform.
 class PersistedTransform extends PersistedContainerSurface
     implements ui.TransformEngineLayer {
-  PersistedTransform(PersistedTransform oldLayer, this.matrix4)
-      : super(oldLayer);
+  PersistedTransform(PersistedTransform oldLayer, Float32List matrix)
+      : matrix4 = matrix, _transformKind = transformKindOf(matrix),
+        super(oldLayer);
 
   final Float32List matrix4;
+  final TransformKind _transformKind;
 
   @override
   void recomputeTransformAndClip() {
@@ -29,13 +31,21 @@ class PersistedTransform extends PersistedContainerSurface
 
   @override
   html.Element createElement() {
-    return defaultCreateElement('flt-transform')
-      ..style.transformOrigin = '0 0 0';
+    return defaultCreateElement('flt-transform');
   }
 
   @override
   void apply() {
-    rootElement.style.transform = float64ListToCssTransform(matrix4);
+    if (_transformKind == TransformKind.transform2d) {
+      rootElement.style.transform = float64ListToCssTransform2d(matrix4);
+    } else if (_transformKind == TransformKind.complex) {
+      rootElement.style
+        ..transformOrigin = '0 0 0'
+        ..transform = float64ListToCssTransform3d(matrix4);
+    } else {
+      assert(_transformKind == TransformKind.identity);
+      return null;
+    }
   }
 
   @override
@@ -55,7 +65,11 @@ class PersistedTransform extends PersistedContainerSurface
     }
 
     if (matrixChanged) {
-      apply();
+      if (_transformKind == TransformKind.identity) {
+        rootElement.style.removeProperty('transform');
+      } else {
+        apply();
+      }
     }
   }
 }

@@ -79,18 +79,23 @@ class PersistedClipRect extends PersistedContainerSurface
 
   @override
   void apply() {
-    rootElement.style
-      ..left = '${rect.left}px'
-      ..top = '${rect.top}px'
-      ..width = '${rect.right - rect.left}px'
-      ..height = '${rect.bottom - rect.top}px';
+    final html.CssStyleDeclaration rootElementStyle = rootElement.style;
+    final double left = rect.left;
+    final double top = rect.top;
+    final double width = rect.width;
+    final double height = rect.height;
+    rootElementStyle
+      ..left = left == 0 ? '0px' : '${left}px'
+      ..top = top == 0 ? '0px' : '${top}px'
+      ..width = '${width}px'
+      ..height = '${height}px';
 
     // Translate the child container in the opposite direction to compensate for
     // the shift in the coordinate system introduced by the translation of the
     // rootElement. Clipping in Flutter has no effect on the coordinate system.
     childContainer.style
-      ..left = '${-rect.left}px'
-      ..top = '${-rect.top}px';
+      ..left = left == 0 ? '0px' : '${-left}px'
+      ..top = top == 0 ? '0px' : '${-top}px';
   }
 
   @override
