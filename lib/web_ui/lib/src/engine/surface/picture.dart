@@ -227,11 +227,23 @@ class PersistedStandardPicture extends PersistedPicture {
   }
 
   void _applyDomPaint(EngineCanvas oldCanvas) {
-    _recycleCanvas(oldCanvas);
-    _canvas = DomCanvas();
-    domRenderer.clearDom(rootElement);
-    rootElement.append(_canvas.rootElement);
-    picture.recordingCanvas.apply(_canvas, _optimalLocalCullRect);
+    DomCanvas oldDomCanvas = oldCanvas is DomCanvas ? oldCanvas as DomCanvas : null;
+    String newFingerPrint = picture.recordingCanvas._fingerPrint.toString();
+    if (oldDomCanvas != null &&
+        oldDomCanvas.rcFingerPrint == newFingerPrint &&
+        newFingerPrint.isNotEmpty) {
+      _canvas = oldCanvas;
+      oldDomCanvas.reuse();
+      picture.recordingCanvas.apply(_canvas, _optimalLocalCullRect);
+      domRenderer.clearDom(rootElement);
+      rootElement.append(_canvas.rootElement);
+    } else {
+      _recycleCanvas(oldCanvas);
+      _canvas = DomCanvas(rcFingerPrint: newFingerPrint);
+      domRenderer.clearDom(rootElement);
+      picture.recordingCanvas.apply(_canvas, _optimalLocalCullRect);
+      rootElement.append(_canvas.rootElement);
+    }
   }
 
   void _applyBitmapPaint(EngineCanvas oldCanvas) {

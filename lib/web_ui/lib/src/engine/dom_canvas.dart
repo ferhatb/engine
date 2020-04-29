@@ -5,18 +5,44 @@
 // @dart = 2.6
 part of engine;
 
+int reuseCount = 0;
+
+class _ReusableElement {
+  final String op;
+  final html.Element element;
+  _ReusableElement(this.op, this.element);
+}
+
 /// A canvas that renders to DOM elements and CSS properties.
 class DomCanvas extends EngineCanvas with SaveElementStackTracking {
   @override
   final html.Element rootElement = html.Element.tag('flt-dom-canvas');
+  // Finger print of drawing commands provided by [RecordingCanvas].
+  final String rcFingerPrint;
 
-  DomCanvas() {
+  bool _reuse = false;
+  int _reuseIndex = 0;
+  bool needsAppend = false;
+
+  List<_ReusableElement> _ops = [];
+  List<_ReusableElement> _reusableList = [];
+  void addReusable(String operation, html.Element element) {
+    _ops.add(_ReusableElement(operation, element));
+  }
+
+  DomCanvas({this.rcFingerPrint}) {
     rootElement.style
       ..position = 'absolute'
       ..top = '0'
       ..right = '0'
       ..bottom = '0'
       ..left = '0';
+  }
+
+  /// Prepare to reuse child elements.
+  void reuse() {
+    _reuse = true;
+    _reuseIndex = 0;
   }
 
   /// Prepare to reuse this canvas by clearing it's current contents.
@@ -45,7 +71,15 @@ class DomCanvas extends EngineCanvas with SaveElementStackTracking {
   @override
   void drawColor(ui.Color color, ui.BlendMode blendMode) {
     // TODO(yjbanov): implement blendMode
-    final html.Element box = html.Element.tag('draw-color');
+    final _ReusableElement reusable = _reusableList.isEmpty ? null : _reusableList[_reuseIndex];
+    html.Element box;
+    if (_reuse && reusable != null && reusable.op == _FingerPrints.drawColor) {
+      box = reusable.element;
+      ++_reuseIndex;
+    } else {
+      box = html.Element.tag('draw-color');
+      needsAppend = true;
+    }
     box.style
       ..position = 'absolute'
       ..top = '0'
@@ -53,7 +87,10 @@ class DomCanvas extends EngineCanvas with SaveElementStackTracking {
       ..bottom = '0'
       ..left = '0'
       ..backgroundColor = colorToCssString(color);
-    currentElement.append(box);
+    if (needsAppend) {
+      currentElement.append(box);
+    }
+    addReusable(_FingerPrints.drawColor, box);
   }
 
   @override
@@ -68,17 +105,27 @@ class DomCanvas extends EngineCanvas with SaveElementStackTracking {
 
   @override
   void drawRect(ui.Rect rect, SurfacePaintData paint) {
-    _drawRect(rect, paint, 'draw-rect');
+    html.Element rectangle;
+    final _ReusableElement reusable = _reusableList.isEmpty ? null : _reusableList[_reuseIndex];
+    if (_reuse && reusable != null && reusable.op == _FingerPrints.drawRect) {
+      rectangle = reusable.element;
+      ++_reuseIndex;
+    } else {
+      rectangle = html.Element.tag('draw-rect');
+      needsAppend = true;
+    }
+    _drawRect(rect, paint, rectangle);
+    addReusable(_FingerPrints.drawRect, rectangle);
   }
 
-  html.Element _drawRect(ui.Rect rect, SurfacePaintData paint, String tagName) {
+  html.Element _drawRect(ui.Rect rect, SurfacePaintData paint, html.Element rectangle) {
     assert(paint.shader == null);
-    final html.Element rectangle = html.Element.tag(tagName);
     assert(() {
       rectangle.setAttribute('flt-rect', '$rect');
       rectangle.setAttribute('flt-paint', '$paint');
       return true;
     }());
+
     String effectiveTransform;
     final bool isStroke = paint.style == ui.PaintingStyle.stroke;
     final double strokeWidth = paint.strokeWidth ?? 0.0;
@@ -128,15 +175,24 @@ class DomCanvas extends EngineCanvas with SaveElementStackTracking {
         ..height = '${bottom - top}px'
         ..backgroundColor = cssColor;
     }
-
-    currentElement.append(rectangle);
-    return rectangle;
+    if (needsAppend) {
+      currentElement.append(rectangle);
+    }
   }
 
   @override
   void drawRRect(ui.RRect rrect, SurfacePaintData paint) {
-    html.Element element = _drawRect(rrect.outerRect, paint, 'draw-rrect');
-    element.style.borderRadius = '${rrect.blRadiusX.toStringAsFixed(3)}px';
+    html.Element element;
+    final _ReusableElement reusable = _reusableList.isEmpty ? null : _reusableList[_reuseIndex];
+    if (_reuse && reusable != null && reusable.op == _FingerPrints.drawRRect) {
+      element = reusable.element;
+      ++_reuseIndex;
+    } else {
+      element = html.Element.tag('draw-rrect');
+      needsAppend = true;
+    }
+    _drawRect(rrect.outerRect, paint, element);
+    addReusable(_FingerPrints.drawRRect, element);
   }
 
   @override
@@ -180,7 +236,19 @@ class DomCanvas extends EngineCanvas with SaveElementStackTracking {
   void drawParagraph(ui.Paragraph paragraph, ui.Offset offset) {
     final html.Element paragraphElement =
         _drawParagraphElement(paragraph, offset, transform: currentTransform);
-    currentElement.append(paragraphElement);
+    html.Element element;
+    final _ReusableElement reusable = _reusableList.isEmpty ? null : _reusableList[_reuseIndex];
+    if (_reuse && reusable != null && reusable.op == _FingerPrints.drawParagraph) {
+      element = reusable.element;
+      ++_reuseIndex;
+      currentElement.append(element.innerHtml == paragraphElement.innerHtml ?
+          element : paragraphElement);
+    } else {
+      element = paragraphElement;
+      currentElement.append(paragraphElement);
+    }
+    needsAppend = true;
+    addReusable(_FingerPrints.drawParagraph, element);
   }
 
   @override
@@ -195,8 +263,26 @@ class DomCanvas extends EngineCanvas with SaveElementStackTracking {
     throw UnimplementedError();
   }
 
+  static int reuseCount = 0;
+
   @override
   void endOfPaint() {
-    // No reuse of elements yet to handle here. Noop.
+    needsAppend = false;
+    if (_reuse) {
+//      reuseCount += _reuseIndex;
+//      print(reuseCount);
+      for (int i = _reuseIndex, len = _reusableList.length; i < len; i++) {
+        _reusableList[i].element.remove();
+      }
+    }
+    _reusableList = _ops;
+    _ops = [];
   }
+}
+
+class _FingerPrints {
+  static const String drawColor = 'C';
+  static const String drawRect = 'r';
+  static const String drawRRect = 'R';
+  static const String drawParagraph = 'P';
 }

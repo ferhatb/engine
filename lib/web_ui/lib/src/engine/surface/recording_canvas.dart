@@ -23,6 +23,8 @@ double _measureBorderRadius(double x, double y) {
 ///
 /// See [Canvas] for docs for these methods.
 class RecordingCanvas {
+  final StringBuffer _fingerPrint = StringBuffer();
+
   /// Computes [_pictureBounds].
   final _PaintBounds _paintBounds;
 
@@ -273,6 +275,7 @@ class RecordingCanvas {
     final PaintDrawColor command = PaintDrawColor(color, blendMode);
     _commands.add(command);
     _paintBounds.grow(_paintBounds.maxPaintBounds, command);
+    _fingerPrint.write(_FingerPrints.drawColor);
   }
 
   void drawLine(ui.Offset p1, ui.Offset p2, SurfacePaint paint) {
@@ -309,6 +312,7 @@ class RecordingCanvas {
 
   void drawRect(ui.Rect rect, SurfacePaint paint) {
     assert(!_debugRecordingEnded);
+    _fingerPrint.write(_FingerPrints.drawRect);
     if (paint.shader != null) {
       _hasArbitraryPaint = true;
     }
@@ -325,6 +329,7 @@ class RecordingCanvas {
 
   void drawRRect(ui.RRect rrect, SurfacePaint paint) {
     assert(!_debugRecordingEnded);
+    _fingerPrint.write(_FingerPrints.drawRRect);
     if (paint.shader != null || !rrect.webOnlyUniformRadii) {
       _hasArbitraryPaint = true;
     }
@@ -483,7 +488,7 @@ class RecordingCanvas {
       // Ignore non-laid out paragraphs. This matches Flutter's behavior.
       return;
     }
-
+    _fingerPrint.write(_FingerPrints.drawParagraph);
     _didDraw = true;
     if (engineParagraph._geometricStyle.ellipsis != null) {
       _hasArbitraryPaint = true;
