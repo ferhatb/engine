@@ -5,6 +5,14 @@
 // @dart = 2.6
 part of engine;
 
+/// Evaluates degree 2 polynomial (quadratic).
+double polyEval(double A, double B, double C, double t) =>
+    (A * t + B) * t + C;
+
+/// Evaluates degree 3 polynomial (cubic).
+double polyEval4(double A, double B, double C, double D, double t) =>
+    ((A * t + B) * t + C) * t + D;
+
 /// A complex, one-dimensional subset of a plane.
 ///
 /// A path consists of a number of subpaths, and a _current point_.
