@@ -82,7 +82,7 @@ String float64ListToCssTransform(Float32List matrix) {
     return float64ListToCssTransform3d(matrix);
   } else {
     assert(transformKind == TransformKind.identity);
-    return null;
+    return 'none';
   }
 }
 
@@ -480,4 +480,16 @@ FutureOr<void> sendFontChangeMessage() async {
         );
       });
     }
+}
+
+// Stores matrix in a form that allows zero allocation transforms.
+class _FastMatrix64 {
+  final Float64List matrix;
+  double transformedX = 0, transformedY = 0;
+  _FastMatrix64(this.matrix);
+
+  void transform(double x, double y) {
+    transformedX = matrix[12] + (matrix[0] * x) + (matrix[4] * y);
+    transformedY = matrix[13] + (matrix[1] * x) + (matrix[5] * y);
+  }
 }

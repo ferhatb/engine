@@ -16,6 +16,11 @@
 
 set -Ee
 
+
+echo "These tests have been temporarily disabled."
+echo "See: https://github.com/flutter/flutter/issues/57061"
+exit 0
+
 # The nodes are named blah-blah--four-word-fuchsia-id
 device_name=${SWARMING_BOT_ID#*--}
 
@@ -66,61 +71,63 @@ tar -xvzf $2 -C packages 1> /dev/null
 echo "$(date) END:EXTRACT_PACKAGES  -----------------------------------"
 
 
+# TODO (kaushikiska): Re-enable these tests.
+# see: https://github.com/flutter/flutter/issues/57061
 # TODO(gw280): Enable tests using JIT runner
 
-echo "$(date) START:flutter_runner_tests ----------------------------"
-./fuchsia_ctl -d $device_name test \
-    -f flutter_aot_runner-0.far    \
-    -f flutter_runner_tests-0.far  \
-    -t flutter_runner_tests        \
-    --identity-file $pkey \
-    --timeout-seconds 300 \
-    --packages-directory packages
+# echo "$(date) START:flutter_runner_tests ----------------------------"
+# ./fuchsia_ctl -d $device_name test \
+#     -f flutter_aot_runner-0.far    \
+#     -f flutter_runner_tests-0.far  \
+#     -t flutter_runner_tests        \
+#     --identity-file $pkey \
+#     --timeout-seconds 300 \
+#     --packages-directory packages
 
-./fuchsia_ctl -d $device_name test \
-    -f flutter_aot_runner-0.far    \
-    -f flutter_runner_scenic_tests-0.far  \
-    -t flutter_runner_scenic_tests \
-    --identity-file $pkey \
-    --timeout-seconds 300 \
-    --packages-directory packages
+# ./fuchsia_ctl -d $device_name test \
+#     -f flutter_aot_runner-0.far    \
+#     -f flutter_runner_scenic_tests-0.far  \
+#     -t flutter_runner_scenic_tests \
+#     --identity-file $pkey \
+#     --timeout-seconds 300 \
+#     --packages-directory packages
 
 # TODO(https://github.com/flutter/flutter/issues/50032) Enable after the
 # Fuchsia message loop migration is complete.
-echo "$(date) START:fml_tests ---------------------------------------"
-./fuchsia_ctl -d $device_name test \
-    -f fml_tests-0.far  \
-    -t fml_tests \
-    -a "--gtest_filter=-MessageLoop*:Message*:FileTest*" \
-    --identity-file $pkey \
-    --timeout-seconds 300 \
-    --packages-directory packages
+# echo "$(date) START:fml_tests ---------------------------------------"
+# ./fuchsia_ctl -d $device_name test \
+#     -f fml_tests-0.far  \
+#     -t fml_tests \
+#     -a "--gtest_filter=-MessageLoop*:Message*:FileTest*" \
+#     --identity-file $pkey \
+#     --timeout-seconds 300 \
+#     --packages-directory packages
 
-echo "$(date) START:flow_tests --------------------------------------"
-./fuchsia_ctl -d $device_name test \
-    -f flow_tests-0.far  \
-    -t flow_tests \
-    --identity-file $pkey \
-    --timeout-seconds 300 \
-    --packages-directory packages
 
-echo "$(date) START:runtime_tests -----------------------------------"
-./fuchsia_ctl -d $device_name test \
-    -f runtime_tests-0.far  \
-    -t runtime_tests \
-    --identity-file $pkey \
-    --timeout-seconds 300 \
-    --packages-directory packages
+# echo "$(date) START:flow_tests --------------------------------------"
+# ./fuchsia_ctl -d $device_name test \
+#     -f flow_tests-0.far  \
+#     -t flow_tests \
+#     --identity-file $pkey \
+#     --timeout-seconds 300 \
+#     --packages-directory packages
+
+# echo "$(date) START:runtime_tests -----------------------------------"
+# ./fuchsia_ctl -d $device_name test \
+#     -f runtime_tests-0.far  \
+#     -t runtime_tests \
+#     --identity-file $pkey \
+#     --timeout-seconds 300 \
+#     --packages-directory packages
 
 # TODO(https://github.com/flutter/flutter/issues/53399): Re-enable
 # OnServiceProtocolGetSkSLsWorks and CanLoadSkSLsFromAsset once they pass on
 # Fuchsia.
-echo "$(date) START:shell_tests -------------------------------------"
-./fuchsia_ctl -d $device_name test \
-    -f shell_tests-0.far  \
-    -t shell_tests \
-    -a "--gtest_filter=-ShellTest.CacheSkSLWorks:ShellTest.SetResourceCacheSize*:ShellTest.OnServiceProtocolGetSkSLsWorks:ShellTest.CanLoadSkSLsFromAsset" \
-    --identity-file $pkey \
-    --timeout-seconds 300 \
-    --packages-directory packages
-
+# echo "$(date) START:shell_tests -------------------------------------"
+# ./fuchsia_ctl -d $device_name test \
+#     -f shell_tests-0.far  \
+#     -t shell_tests \
+#     -a "--gtest_filter=-ShellTest.CacheSkSLWorks:ShellTest.SetResourceCacheSize*:ShellTest.OnServiceProtocolGetSkSLsWorks:ShellTest.CanLoadSkSLsFromAsset" \
+#     --identity-file $pkey \
+#     --timeout-seconds 300 \
+#     --packages-directory packages
