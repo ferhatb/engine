@@ -248,7 +248,7 @@ class _PathContourMeasure {
         path.lineTo(toX, toY);
         break;
       case PathCommandTypes.bezierCurveTo:
-        _chopCubicAt(points, startT, stopT, _buffer);
+        _chopCubicBetweenT(points, startT, stopT, _buffer);
         path.cubicTo(_buffer[2], _buffer[3], _buffer[4], _buffer[5], _buffer[6],
             _buffer[7]);
         break;
@@ -858,82 +858,6 @@ class _SkCubicCoefficients {
   double evalY(double t) => (((ay * t + by) * t) + cy) * t + dy;
 }
 
-/// Chops cubic spline at startT and stopT, writes result to buffer.
-void _chopCubicAt(
-    List<double> points, double startT, double stopT, Float32List buffer) {
-  assert(startT != 0 || stopT != 0);
-  final double p3y = points[7];
-  final double p0x = points[0];
-  final double p0y = points[1];
-  final double p1x = points[2];
-  final double p1y = points[3];
-  final double p2x = points[4];
-  final double p2y = points[5];
-  final double p3x = points[6];
-  // If startT == 0 chop at end point and return curve.
-  final bool chopStart = startT != 0;
-  final double t = chopStart ? startT : stopT;
-
-  final double ab1x = _interpolate(p0x, p1x, t);
-  final double ab1y = _interpolate(p0y, p1y, t);
-  final double bc1x = _interpolate(p1x, p2x, t);
-  final double bc1y = _interpolate(p1y, p2y, t);
-  final double cd1x = _interpolate(p2x, p3x, t);
-  final double cd1y = _interpolate(p2y, p3y, t);
-  final double abc1x = _interpolate(ab1x, bc1x, t);
-  final double abc1y = _interpolate(ab1y, bc1y, t);
-  final double bcd1x = _interpolate(bc1x, cd1x, t);
-  final double bcd1y = _interpolate(bc1y, cd1y, t);
-  final double abcd1x = _interpolate(abc1x, bcd1x, t);
-  final double abcd1y = _interpolate(abc1y, bcd1y, t);
-  if (!chopStart) {
-    // Return left side of curve.
-    buffer[0] = p0x;
-    buffer[1] = p0y;
-    buffer[2] = ab1x;
-    buffer[3] = ab1y;
-    buffer[4] = abc1x;
-    buffer[5] = abc1y;
-    buffer[6] = abcd1x;
-    buffer[7] = abcd1y;
-    return;
-  }
-  if (stopT == 1) {
-    // Return right side of curve.
-    buffer[0] = abcd1x;
-    buffer[1] = abcd1y;
-    buffer[2] = bcd1x;
-    buffer[3] = bcd1y;
-    buffer[4] = cd1x;
-    buffer[5] = cd1y;
-    buffer[6] = p3x;
-    buffer[7] = p3y;
-    return;
-  }
-  // We chopped at startT, now the right hand side of curve is at
-  // abcd1, bcd1, cd1, p3x, p3y. Chop this part using endT;
-  final double endT = (stopT - startT) / (1 - startT);
-  final double ab2x = _interpolate(abcd1x, bcd1x, endT);
-  final double ab2y = _interpolate(abcd1y, bcd1y, endT);
-  final double bc2x = _interpolate(bcd1x, cd1x, endT);
-  final double bc2y = _interpolate(bcd1y, cd1y, endT);
-  final double cd2x = _interpolate(cd1x, p3x, endT);
-  final double cd2y = _interpolate(cd1y, p3y, endT);
-  final double abc2x = _interpolate(ab2x, bc2x, endT);
-  final double abc2y = _interpolate(ab2y, bc2y, endT);
-  final double bcd2x = _interpolate(bc2x, cd2x, endT);
-  final double bcd2y = _interpolate(bc2y, cd2y, endT);
-  final double abcd2x = _interpolate(abc2x, bcd2x, endT);
-  final double abcd2y = _interpolate(abc2y, bcd2y, endT);
-  buffer[0] = abcd1x;
-  buffer[1] = abcd1y;
-  buffer[2] = ab2x;
-  buffer[3] = ab2y;
-  buffer[4] = abc2x;
-  buffer[5] = abc2y;
-  buffer[6] = abcd2x;
-  buffer[7] = abcd2y;
-}
 
 /// Chops quadratic curve at startT and stopT and writes result to buffer.
 void _chopQuadAt(
