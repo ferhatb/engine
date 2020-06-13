@@ -62,7 +62,6 @@ part 'engine/html_image_codec.dart';
 part 'engine/keyboard.dart';
 part 'engine/mouse_cursor.dart';
 part 'engine/onscreen_logging.dart';
-part 'engine/path_to_svg.dart';
 part 'engine/picture.dart';
 part 'engine/platform_views.dart';
 part 'engine/plugins.dart';
@@ -97,7 +96,9 @@ part 'engine/surface/opacity.dart';
 part 'engine/surface/painting.dart';
 part 'engine/surface/path/conic.dart';
 part 'engine/surface/path/cubic.dart';
+part 'engine/surface/path/path.dart';
 part 'engine/surface/path/path_ref.dart';
+part 'engine/surface/path/path_to_svg.dart';
 part 'engine/surface/path/path_utils.dart';
 part 'engine/surface/path/path_windings.dart';
 part 'engine/surface/path/tangent.dart';
@@ -109,7 +110,6 @@ part 'engine/surface/render_vertices.dart';
 part 'engine/surface/scene.dart';
 part 'engine/surface/scene_builder.dart';
 part 'engine/surface/surface.dart';
-part 'engine/surface/path.dart';
 part 'engine/surface/surface_stats.dart';
 part 'engine/surface/transform.dart';
 part 'engine/test_embedding.dart';
@@ -244,6 +244,9 @@ class _NullTreeSanitizer implements html.NodeTreeSanitizer {
 /// * https://bugs.chromium.org/p/v8/issues/detail?id=9199
 /// * https://bugs.chromium.org/p/v8/issues/detail?id=2022
 Float32List toMatrix32(Float64List matrix64) {
+  if (matrix64 == null) {
+    return null;
+  }
   final Float32List matrix32 = Float32List(16);
   matrix32[15] = matrix64[15];
   matrix32[14] = matrix64[14];

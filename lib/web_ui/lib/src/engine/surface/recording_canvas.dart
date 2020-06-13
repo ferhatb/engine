@@ -466,7 +466,7 @@ class RecordingCanvas {
       }
     }
     SurfacePath sPath = path;
-    if (sPath.subpaths.isNotEmpty) {
+    if (!sPath.isEmpty) {
       _hasArbitraryPaint = true;
       _didDraw = true;
       ui.Rect pathBounds = sPath.getBounds();
@@ -1574,9 +1574,9 @@ class Ellipse extends PathCommand {
         matrix4,
         bezierPath);
     if (matrix4 != null) {
-      targetPath._addPathWithMatrix(bezierPath, 0, 0, matrix4);
+      targetPath._addPath(bezierPath, 0, 0, matrix4, SPathAddPathMode.kAppend);
     } else {
-      targetPath._addPath(bezierPath, 0, 0);
+      targetPath._addPath(bezierPath, 0, 0, null, SPathAddPathMode.kAppend);
     }
   }
 
@@ -1836,41 +1836,37 @@ class RectCommand extends PathCommand {
   }
 }
 
-class RRectCommand extends PathCommand {
-  final ui.RRect rrect;
-
-  const RRectCommand(this.rrect) : super(PathCommandTypes.rRect);
-
-  @override
-  RRectCommand shifted(ui.Offset offset) {
-    return RRectCommand(rrect.shift(offset));
-  }
-
-  @override
-  List<dynamic> serializeToCssPaint() {
-    return <dynamic>[7, _serializeRRectToCssPaint(rrect)];
-  }
-
-  @override
-  void transform(Float32List matrix4, SurfacePath targetPath) {
-    final ui.Path roundRectPath = ui.Path();
-    _RRectToPathRenderer(roundRectPath).render(rrect);
-    if (matrix4 != null) {
-      targetPath._addPathWithMatrix(roundRectPath, 0, 0, matrix4);
-    } else {
-      targetPath._addPath(roundRectPath, 0, 0);
-    }
-  }
-
-  @override
-  String toString() {
-    if (assertionsEnabled) {
-      return '$rrect';
-    } else {
-      return super.toString();
-    }
-  }
-}
+//class RRectCommand extends PathCommand {
+//  final ui.RRect rrect;
+//
+//  const RRectCommand(this.rrect) : super(PathCommandTypes.rRect);
+//
+//  @override
+//  RRectCommand shifted(ui.Offset offset) {
+//    return RRectCommand(rrect.shift(offset));
+//  }
+//
+//  @override
+//  List<dynamic> serializeToCssPaint() {
+//    return <dynamic>[7, _serializeRRectToCssPaint(rrect)];
+//  }
+//
+//  @override
+//  void transform(Float32List matrix4, SurfacePath targetPath) {
+//    final ui.Path roundRectPath = ui.Path();
+//    _RRectToPathRenderer(roundRectPath).render(rrect);
+//    targetPath._addPath(roundRectPath, 0, 0, matrix4, SPathAddPathMode.kAppend);
+//  }
+//
+//  @override
+//  String toString() {
+//    if (assertionsEnabled) {
+//      return '$rrect';
+//    } else {
+//      return super.toString();
+//    }
+//  }
+//}
 
 class CloseCommand extends PathCommand {
   const CloseCommand() : super(PathCommandTypes.close);

@@ -264,15 +264,15 @@ class PersistedPhysicalShape extends PersistedContainerSurface
         }
         return;
       } else {
-        final Ellipse ellipse = path.webOnlyPathAsCircle;
-        if (ellipse != null) {
-          final double rx = ellipse.radiusX;
-          final double ry = ellipse.radiusY;
+        final ui.Rect ovalRect = path.webOnlyPathAsCircle;
+        if (ovalRect != null) {
+          final double rx = ovalRect.width / 2.0;
+          final double ry = ovalRect.height / 2.0;
           final String borderRadius =
               rx == ry ? '${rx}px ' : '${rx}px ${ry}px ';
           final html.CssStyleDeclaration style = rootElement.style;
-          final double left = ellipse.x - rx;
-          final double top = ellipse.y - ry;
+          final double left = ovalRect.left;
+          final double top = ovalRect.top;
           style
             ..left = '${left}px'
             ..top = '${top}px'
@@ -326,7 +326,7 @@ class PersistedPhysicalShape extends PersistedContainerSurface
         oldSurface.shadowColor != shadowColor) {
       _applyShadow();
     }
-    if (oldSurface.path != path) {
+    if (!oldSurface.path.pathRef.equals(path.pathRef)) {
       oldSurface._clipElement?.remove();
       domRenderer.setElementStyle(rootElement, 'clip-path', '');
       domRenderer.setElementStyle(rootElement, '-webkit-clip-path', '');

@@ -176,13 +176,9 @@ class BitmapCanvas extends EngineCanvas {
   @override
   void clear() {
     _canvasPool.clear();
-    final int len = _children.length;
-    for (int i = 0; i < len; i++) {
-      html.Element child = _children[i];
-      // Don't remove children that have been reused by CrossFrameCache.
-      if (child.parent == rootElement) {
-        child.remove();
-      }
+    html.Node node;
+    while ((node = rootElement.lastChild) != null) {
+      node.remove();
     }
     _children.clear();
     _cachedLastStyle = null;

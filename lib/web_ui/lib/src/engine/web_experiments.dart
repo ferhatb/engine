@@ -32,10 +32,11 @@ class WebExperiments {
     _useCanvasText = enabled;
   }
 
-  bool _useCanvasText = const bool.fromEnvironment(
-    'FLUTTER_WEB_USE_EXPERIMENTAL_CANVAS_TEXT',
-    defaultValue: null,
-  );
+  bool _useCanvasText = true;
+//  const bool.fromEnvironment(
+//    'FLUTTER_WEB_USE_EXPERIMENTAL_CANVAS_TEXT',
+//    defaultValue: null,
+//  );
 
   /// Reset all experimental flags to their default values.
   void reset() {
@@ -46,7 +47,7 @@ class WebExperiments {
   void updateExperiment(String name, bool enabled) {
     switch (name) {
       case 'useCanvasText':
-        _useCanvasText = enabled;
+        //_useCanvasText = enabled;
         break;
     }
   }

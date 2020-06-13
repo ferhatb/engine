@@ -282,7 +282,6 @@ class PathWinding {
 
   void _computeCubicWinding() {
     int n = _chopCubicAtYExtrema(_buffer, _buffer);
-    int w = 0;
     for (int i = 0; i <= n; ++i) {
       _windingMonoCubic(i * 3 * 2);
     }
@@ -293,9 +292,9 @@ class PathWinding {
     final double px0 = _buffer[bufferIndex++];
     final double py0 = _buffer[bufferIndex++];
     final double px1 = _buffer[bufferIndex++];
-    final double py1 = _buffer[bufferIndex++];
+    bufferIndex++;
     final double px2 = _buffer[bufferIndex++];
-    final double py2 = _buffer[bufferIndex++];
+    bufferIndex++;
     final double px3 = _buffer[bufferIndex++];
     final double py3 = _buffer[bufferIndex++];
 
@@ -363,7 +362,6 @@ class PathIterator {
   final int _verbCount;
 
   bool _needClose = false;
-  bool _closeLine = false;
   int _segmentState = SPathSegmentState.kEmptyContour;
   int _conicWeightIndex = -1;
   double _lastPointX = 0;
@@ -412,7 +410,6 @@ class PathIterator {
       outPts[3] = _moveToY;
       _lastPointX = _moveToX;
       _lastPointY = _moveToY;
-      _closeLine = true;
       return SPath.kLineVerb;
     } else {
       outPts[0] = _moveToX;
@@ -479,7 +476,6 @@ class PathIterator {
         outPts[3] = offset.dy;
         _lastPointX = offset.dx;
         _lastPointY = offset.dy;
-        _closeLine = false;
         break;
       case SPath.kConicVerb:
         _conicWeightIndex++;

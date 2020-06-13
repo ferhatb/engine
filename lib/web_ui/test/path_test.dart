@@ -14,7 +14,7 @@ import 'matchers.dart';
 void main() {
   test('Should have no subpaths when created', () {
     final SurfacePath path = SurfacePath();
-    expect(path.subpaths.length, 0);
+    expect(path.isEmpty, true);
   });
 
   test('LineTo should add command', () {
@@ -22,17 +22,19 @@ void main() {
     path.moveTo(5.0, 10.0);
     path.lineTo(20.0, 40.0);
     path.lineTo(30.0, 50.0);
-    expect(path.subpaths.length, 1);
-    expect(path.subpaths[0].currentX, 30.0);
-    expect(path.subpaths[0].currentY, 50.0);
+    expect(path.pathRef.countPoints(), 3);
+    expect(path.pathRef.atPoint(2).dx, 30.0);
+    expect(path.pathRef.atPoint(2).dy, 50.0);
   });
 
   test('LineTo should add moveTo 0,0 when first call to Path API', () {
     final SurfacePath path = SurfacePath();
     path.lineTo(20.0, 40.0);
-    expect(path.subpaths.length, 1);
-    expect(path.subpaths[0].currentX, 20.0);
-    expect(path.subpaths[0].currentY, 40.0);
+    expect(path.pathRef.countPoints(), 2);
+    expect(path.pathRef.atPoint(0).dx, 0);
+    expect(path.pathRef.atPoint(0).dy, 0);
+    expect(path.pathRef.atPoint(1).dx, 20.0);
+    expect(path.pathRef.atPoint(1).dy, 40.0);
   });
 
   test('relativeLineTo should increments currentX', () {
@@ -40,20 +42,20 @@ void main() {
     path.moveTo(5.0, 10.0);
     path.lineTo(20.0, 40.0);
     path.relativeLineTo(5.0, 5.0);
-    expect(path.subpaths.length, 1);
-    expect(path.subpaths[0].currentX, 25.0);
-    expect(path.subpaths[0].currentY, 45.0);
+    expect(path.pathRef.countPoints(), 3);
+    expect(path.pathRef.atPoint(2).dx, 25.0);
+    expect(path.pathRef.atPoint(2).dy, 45.0);
   });
 
   test('Should allow calling relativeLineTo before moveTo', () {
     final SurfacePath path = SurfacePath();
     path.relativeLineTo(5.0, 5.0);
     path.moveTo(5.0, 10.0);
-    expect(path.subpaths.length, 2);
-    expect(path.subpaths[0].currentX, 5.0);
-    expect(path.subpaths[0].currentY, 5.0);
-    expect(path.subpaths[1].currentX, 5.0);
-    expect(path.subpaths[1].currentY, 10.0);
+    expect(path.pathRef.countPoints(), 3);
+    expect(path.pathRef.atPoint(1).dx, 5.0);
+    expect(path.pathRef.atPoint(1).dy, 5.0);
+    expect(path.pathRef.atPoint(2).dx, 5.0);
+    expect(path.pathRef.atPoint(2).dy, 10.0);
   });
 
   test('Should allow relativeLineTo after reset', () {
@@ -64,9 +66,10 @@ void main() {
     path.extendWithPath(subPath, const Offset(0.0, 0.0));
     path.reset();
     path.relativeLineTo(5.0, 5.0);
-    expect(path.subpaths.length, 1);
-    expect(path.subpaths[0].currentX, 5.0);
-    expect(path.subpaths[0].currentY, 5.0);
+    expect(path.pathRef.countPoints(), 2);
+    expect(path.pathRef.atPoint(0).dx, 0);
+    expect(path.pathRef.atPoint(0).dy, 0);
+    expect(path.pathRef.atPoint(1).dx, 5.0);
   });
 
   test('Should detect rectangular path', () {
@@ -90,10 +93,10 @@ void main() {
   test('Should detect rounded rectangular path', () {
     final SurfacePath path = SurfacePath();
     path.addRRect(RRect.fromRectAndRadius(
-        const Rect.fromLTWH(1.0, 2.0, 3.0, 4.0), const Radius.circular(2.0)));
+        const Rect.fromLTRB(1.0, 2.0, 30.0, 40.0), const Radius.circular(2.0)));
     expect(
         path.webOnlyPathAsRoundedRect,
-        RRect.fromRectAndRadius(const Rect.fromLTWH(1.0, 2.0, 3.0, 4.0),
+        RRect.fromRectAndRadius(const Rect.fromLTRB(1.0, 2.0, 30.0, 40.0),
             const Radius.circular(2.0)));
   });
 
@@ -138,6 +141,64 @@ void main() {
     expect(path.getBounds(), const Rect.fromLTRB(0, 0, 270, 45));
   });
 
+  test('Should compute bounds for addRRect', () {
+    SurfacePath path = Path();
+    Rect bounds = Rect.fromLTRB(30, 40, 400, 300);
+    RRect rrect = RRect.fromRectAndCorners(bounds,
+        topLeft: Radius.elliptical(1,2),
+        topRight: Radius.elliptical(3, 4),
+        bottomLeft: Radius.elliptical(5, 6),
+        bottomRight: Radius.elliptical(7, 8));
+    path.addRRect(rrect);
+    expect(path.getBounds(), bounds);
+    expect(path.webOnlyPathAsRoundedRect, rrect);
+    path = Path();
+    rrect = RRect.fromRectAndCorners(bounds,
+        topLeft: Radius.elliptical(0,2),
+        topRight: Radius.elliptical(3, 4),
+        bottomLeft: Radius.elliptical(5, 6),
+        bottomRight: Radius.elliptical(7, 8));
+    path.addRRect(rrect);
+    expect(path.getBounds(), bounds);
+    expect(path.webOnlyPathAsRoundedRect, rrect);
+    path = Path();
+    rrect = RRect.fromRectAndCorners(bounds,
+        topLeft: Radius.elliptical(0,0),
+        topRight: Radius.elliptical(3, 4),
+        bottomLeft: Radius.elliptical(5, 6),
+        bottomRight: Radius.elliptical(7, 8));
+    path.addRRect(rrect);
+    expect(path.getBounds(), bounds);
+    expect(path.webOnlyPathAsRoundedRect, rrect);
+    path = Path();
+    rrect = RRect.fromRectAndCorners(bounds,
+        topLeft: Radius.elliptical(1,2),
+        topRight: Radius.elliptical(0, 0),
+        bottomLeft: Radius.elliptical(5, 6),
+        bottomRight: Radius.elliptical(7, 8));
+    path.addRRect(rrect);
+    expect(path.getBounds(), bounds);
+    expect(path.webOnlyPathAsRoundedRect, rrect);
+    path = Path();
+    rrect = RRect.fromRectAndCorners(bounds,
+        topLeft: Radius.elliptical(1,2),
+        topRight: Radius.elliptical(3, 4),
+        bottomLeft: Radius.elliptical(0, 0),
+        bottomRight: Radius.elliptical(7, 8));
+    path.addRRect(rrect);
+    expect(path.getBounds(), bounds);
+    expect(path.webOnlyPathAsRoundedRect, rrect);
+    path = Path();
+    rrect = RRect.fromRectAndCorners(bounds,
+        topLeft: Radius.elliptical(1,2),
+        topRight: Radius.elliptical(3, 4),
+        bottomLeft: Radius.elliptical(5, 6),
+        bottomRight: Radius.elliptical(0, 0));
+    path.addRRect(rrect);
+    expect(path.getBounds(), bounds);
+    expect(path.webOnlyPathAsRoundedRect, rrect);
+  });
+
   test('Should compute bounds for lines', () {
     final SurfacePath path = SurfacePath();
     path.moveTo(25, 30);
@@ -148,6 +209,13 @@ void main() {
     path2.moveTo(250, 300);
     path2.lineTo(50, 60);
     expect(path2.getBounds(), const Rect.fromLTRB(50, 60, 250, 300));
+  });
+
+  test('Should compute bounds for polygon', () {
+    final SurfacePath path = SurfacePath();
+    path.addPolygon(<Offset>[Offset(50, 100), Offset(250, 100),
+      Offset(152, 180), Offset(159, 200), Offset(151, 190)], true);
+    expect(path.getBounds(), const Rect.fromLTRB(50, 100, 250, 200));
   });
 
   test('Should compute bounds for quadraticBezierTo', () {
