@@ -345,13 +345,13 @@ class _QuadBounds {
   double minY = 0;
   double maxX = 0;
   double maxY = 0;
-  void calculateBounds(Float32List points) {
-    final double x1 = points[0];
-    final double y1 = points[1];
-    final double cpX = points[2];
-    final double cpY = points[3];
-    final double x2 = points[4];
-    final double y2 = points[5];
+  void calculateBounds(Float32List points, int pointIndex) {
+    final double x1 = points[pointIndex++];
+    final double y1 = points[pointIndex++];
+    final double cpX = points[pointIndex++];
+    final double cpY = points[pointIndex++];
+    final double x2 = points[pointIndex++];
+    final double y2 = points[pointIndex++];
 
     minX = math.min(x1, x2);
     minY = math.min(y1, y2);
@@ -409,13 +409,13 @@ class _ConicBounds {
   double minY = 0;
   double maxX = 0;
   double maxY = 0;
-  void calculateBounds(Float32List points, double w) {
-    final double x1 = points[0];
-    final double y1 = points[1];
-    final double cpX = points[2];
-    final double cpY = points[3];
-    final double x2 = points[4];
-    final double y2 = points[5];
+  void calculateBounds(Float32List points, double w, int pointIndex) {
+    final double x1 = points[pointIndex++];
+    final double y1 = points[pointIndex++];
+    final double cpX = points[pointIndex++];
+    final double cpY = points[pointIndex++];
+    final double x2 = points[pointIndex++];
+    final double y2 = points[pointIndex++];
 
     minX = math.min(x1, x2);
     minY = math.min(y1, y2);

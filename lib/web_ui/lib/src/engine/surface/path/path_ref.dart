@@ -54,9 +54,8 @@ class PathRef {
     assert(pointIndex < _fPointsLength);
     int index = pointIndex * 2;
     _fPoints[index] = x;
-    _fPoints[index + 1] = x;
+    _fPoints[index + 1] = y;
   }
-
 
   // TODO: optimize, for now we do a deepcopy.
   PathRef._shallowCopy(PathRef ref) {
@@ -254,6 +253,33 @@ class PathRef {
     return true;
   }
 
+  PathRef.shiftedFrom(PathRef source, double offsetX, double offsetY) {
+    fVerbs = List.from(source.fVerbs);
+    if (source._conicWeights != null) {
+      _conicWeights = List.from(source._conicWeights);
+    }
+    _fPointsCapacity = source._fPointsCapacity;
+    _fPointsLength = source._fPointsLength;
+    _fPoints = Float32List(_fPointsCapacity * 2);
+    final Float32List sourcePoints = source.points;
+    for (int i = 0, len = _fPointsLength * 2; i < len; i += 2) {
+      points[i] = sourcePoints[i] + offsetX;
+      points[i + 1] = sourcePoints[i] + offsetY;
+    }
+    fBoundsIsDirty = source.fBoundsIsDirty;
+    if (!fBoundsIsDirty) {
+      fBounds = source.fBounds.translate(offsetX, offsetY);
+      fIsFinite = source.fIsFinite;
+    }
+    fSegmentMask = source.fSegmentMask;
+    fIsOval = source.fIsOval;
+    fIsRRect = source.fIsRRect;
+    fIsRect = source.fIsRect;
+    fRRectOrOvalIsCCW = source.fRRectOrOvalIsCCW;
+    fRRectOrOvalStartIdx = source.fRRectOrOvalStartIdx;
+    debugValidate();
+  }
+
   /// Copies contents from [ref].
   void copy(PathRef ref, int additionalReserveVerbs,
       int additionalReservePoints) {
@@ -297,7 +323,7 @@ class PathRef {
     if (newLength > _fPointsCapacity) {
       _fPointsCapacity = newLength + 10;
       Float32List newPoints = Float32List(_fPointsCapacity * 2);
-      js_util.callMethod(newPoints, 'set', [_fPoints]);
+      js_util.callMethod(newPoints, 'set', <dynamic>[_fPoints]);
       _fPoints = newPoints;
     }
     _fPointsLength = newLength;
@@ -366,20 +392,13 @@ class PathRef {
     fBoundsIsDirty = false;
     if (pointCount == 0) {
       fBounds = ui.Rect.zero;
-      fIsFinite = true;
     } else {
       double minX, maxX, minY, maxY;
       minX = maxX = _fPoints[0];
       minY = maxY = _fPoints[1];
-      fIsFinite = minX.isFinite && minY.isFinite;
-      for (int i = 2; i < 2 * pointCount; i += 2) {
+      for (int i = 2, len = 2 * pointCount; i < len; i += 2) {
         final double x = _fPoints[i];
         final double y = _fPoints[i + 1];
-        if (x.isNaN || y.isNaN) {
-          fIsFinite =false;
-          fBounds = ui.Rect.zero;
-          return;
-        }
         minX = math.min(minX, x);
         minY = math.min(minY, y);
         maxX = math.max(maxX, x);
@@ -751,6 +770,48 @@ class PathRefIterator {
       // done verb.
       _verbIndex = pathRef.countVerbs();
     }
+  }
+
+  int iterIndex = 0;
+
+  // Returns next verb and [iterIndex] with location of first point.
+  int nextIndex() {
+    if (_verbIndex == pathRef.countVerbs()) {
+      return SPath.kDoneVerb;
+    }
+    int verb = pathRef.fVerbs[_verbIndex++];
+    final Float32List points = pathRef.points;
+    switch(verb) {
+      case SPath.kMoveVerb:
+        iterIndex = _pointIndex;
+        _pointIndex += 2;
+        break;
+      case SPath.kLineVerb:
+        iterIndex = _pointIndex - 2;
+        _pointIndex += 2;
+        break;
+      case SPath.kConicVerb:
+        _conicWeightIndex++;
+        iterIndex = _pointIndex - 2;
+        _pointIndex += 4;
+        break;
+      case SPath.kQuadVerb:
+        iterIndex = _pointIndex - 2;
+        _pointIndex += 4;
+        break;
+      case SPath.kCubicVerb:
+        iterIndex = _pointIndex - 2;
+        _pointIndex += 6;
+        break;
+      case SPath.kCloseVerb:
+        break;
+      case SPath.kDoneVerb:
+        assert(_verbIndex == pathRef.countVerbs());
+        break;
+      default:
+        throw FormatException('Unsupport Path verb $verb');
+    }
+    return verb;
   }
 
   // Returns next verb and reads associated points into [outPts].

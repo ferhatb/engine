@@ -199,15 +199,15 @@ class _CubicBounds {
   /// Sets resulting bounds as [minX], [minY], [maxX], [maxY].
   ///
   /// The cubic is defined by 4 points (8 floats) in [points].
-  void calculateBounds(Float32List points) {
-    final double startX = points[0];
-    final double startY = points[1];
-    final double cpX1 = points[2];
-    final double cpY1 = points[3];
-    final double cpX2 = points[4];
-    final double cpY2 = points[5];
-    final double endX = points[6];
-    final double endY = points[7];
+  void calculateBounds(Float32List points, int pointIndex) {
+    final double startX = points[pointIndex++];
+    final double startY = points[pointIndex++];
+    final double cpX1 = points[pointIndex++];
+    final double cpY1 = points[pointIndex++];
+    final double cpX2 = points[pointIndex++];
+    final double cpY2 = points[pointIndex++];
+    final double endX = points[pointIndex++];
+    final double endY = points[pointIndex++];
     // Bounding box is defined by all points on the curve where
     // monotonicity changes.
     minX = math.min(startX, endX);

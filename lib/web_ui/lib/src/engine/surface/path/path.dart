@@ -57,6 +57,12 @@ class SurfacePath implements ui.Path {
     _copyFields(source);
   }
 
+  /// Creates a shifted copy of another [Path].
+  SurfacePath.shiftedFrom(SurfacePath source, double offsetX, double offsetY)
+      : pathRef = PathRef.shiftedFrom(source.pathRef, offsetX, offsetY) {
+    _copyFields(source);
+  }
+
   SurfacePath._shallowCopy(SurfacePath source)
       : pathRef = PathRef._shallowCopy(source.pathRef) {
     _copyFields(source);
@@ -1231,27 +1237,8 @@ class SurfacePath implements ui.Path {
   /// Returns a copy of the path with all the segments of every
   /// subpath translated by the given offset.
   @override
-  SurfacePath shift(ui.Offset offset) {
-    assert(offsetIsValid(offset));
-    final double offsetX = offset.dx;
-    final double offsetY = offset.dy;
-    SurfacePath newPath = SurfacePath.from(this);
-    if (offsetX == 0 && offsetY == 0) {
-      return newPath;
-    }
-    newPath._shift(offsetX, offsetY);
-    return newPath;
-  }
-
-  void _shift(double offsetX, double offsetY) {
-    pathRef._preEdit();
-    final int pointCount = pathRef.countPoints();
-    final Float32List points = pathRef.points;
-    for (int i = 0, len = pointCount * 2; i < len; i += 2) {
-      points[i] += offsetX;
-      points[i + 1] += offsetY;
-    }
-  }
+  SurfacePath shift(ui.Offset offset) =>
+    SurfacePath.shiftedFrom(this, offset.dx, offset.dy);
 
   /// Returns a copy of the path with all the segments of every
   /// sub path transformed by the given matrix.
@@ -1299,7 +1286,7 @@ class SurfacePath implements ui.Path {
     double minX = 0.0, maxX = 0.0, minY = 0.0, maxY = 0.0;
 
     final PathRefIterator iter = PathRefIterator(pathRef);
-    final Float32List points = Float32List(8);
+    final Float32List points = pathRef.points;
     int verb;
     _CubicBounds cubicBounds;
     _QuadBounds quadBounds;
@@ -1307,19 +1294,20 @@ class SurfacePath implements ui.Path {
     if (pathRef.isRRect != -1 || pathRef.isOval != -1) {
       return pathRef.getBounds();
     }
-    while ((verb = iter.next(points)) != SPath.kDoneVerb) {
+    while ((verb = iter.nextIndex()) != SPath.kDoneVerb) {
+      final int pIndex = iter.iterIndex;
       switch (verb) {
         case SPath.kMoveVerb:
-          minX = maxX = points[0];
-          minY = maxY = points[1];
+          minX = maxX = points[pIndex];
+          minY = maxY = points[pIndex + 1];
           break;
         case SPath.kLineVerb:
-          minX = maxX = points[2];
-          minY = maxY = points[3];
+          minX = maxX = points[pIndex + 2];
+          minY = maxY = points[pIndex + 3];
           break;
         case SPath.kQuadVerb:
           quadBounds ??= _QuadBounds();
-          quadBounds.calculateBounds(points);
+          quadBounds.calculateBounds(points, pIndex);
           minX = quadBounds.minX;
           minY = quadBounds.minY;
           maxX = quadBounds.maxX;
@@ -1327,7 +1315,7 @@ class SurfacePath implements ui.Path {
           break;
         case SPath.kConicVerb:
           conicBounds ??= _ConicBounds();
-          conicBounds.calculateBounds(points, iter.conicWeight);
+          conicBounds.calculateBounds(points, iter.conicWeight, pIndex);
           minX = conicBounds.minX;
           minY = conicBounds.minY;
           maxX = conicBounds.maxX;
@@ -1335,7 +1323,7 @@ class SurfacePath implements ui.Path {
           break;
         case SPath.kCubicVerb:
           cubicBounds??= _CubicBounds();
-          cubicBounds.calculateBounds(points);
+          cubicBounds.calculateBounds(points, pIndex);
           minX = cubicBounds.minX;
           minY = cubicBounds.minY;
           maxX = cubicBounds.maxX;
