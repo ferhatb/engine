@@ -8,6 +8,8 @@ part of engine;
 /// Holds the path verbs and points.
 ///
 /// This is a Dart port of Skia SkPathRef class.
+/// For reference Flutter Gallery average points array size is 5.9, max 25
+/// we start with [_pointsCapacity] 10 to reduce allocations during growth.
 ///
 /// The points and verbs are stored in a single allocation. The points are at
 /// the beginning of the allocation while the verbs are stored at end of the
@@ -38,7 +40,6 @@ class PathRef {
     fSegmentMask = 0;
     fIsOval = false;
     fIsRRect = false;
-    _rrect = null;
     fIsRect = false;
     // The next two values don't matter unless fIsOval or fIsRRect are true.
     fRRectOrOvalIsCCW = false;
@@ -50,7 +51,10 @@ class PathRef {
   }
 
   void setPoint(int pointIndex, double x, double y) {
-    fPoints[pointIndex] = ui.Offset(x, y);
+    assert(pointIndex < _fPointsLength);
+    int index = pointIndex * 2;
+    _fPoints[index] = x;
+    _fPoints[index + 1] = x;
   }
 
 
@@ -63,24 +67,26 @@ class PathRef {
   static PathRef createEmpty() => _empty;
   static final PathRef _empty = PathRef().._computeBounds();
   static PathRef gEmpty = null;
-
+  static const kInitialPointsCapacity = 8;
   /// Returns a const pointer to the first point.
   ui.Rect   fBounds;
-  List<ui.Offset> fPoints = [];
+  int _fPointsCapacity = kInitialPointsCapacity;
+  Float32List _fPoints = Float32List(kInitialPointsCapacity * 2);
+  int _fPointsLength = 0;
   List<int> fVerbs = [];
 
-  List<ui.Offset> get points => fPoints;
+  Float32List get points => _fPoints;
   //Float32List get conicWeights => _conicWeights;
   //Float32List _conicWeights;
   List<double> _conicWeights;
 
-  int countPoints() => fPoints.length;
+  int countPoints() => _fPointsLength;
   int countVerbs() => fVerbs.length;
   int countWeights() => _conicWeights?.length ?? 0;
 
   /// Convenience methods for getting to a verb or point by index.
   int atVerb(int index) { return fVerbs[index]; }
-  ui.Offset atPoint(int index) { return ui.Offset(fPoints[index].dx, fPoints[index].dy); }
+  ui.Offset atPoint(int index) { return ui.Offset(_fPoints[index * 2], _fPoints[index * 2 + 1]); }
   double atWeight(int index) { return _conicWeights[index]; }
 
   ///  Returns true if all of the points in this path are finite, meaning
@@ -107,7 +113,6 @@ class PathRef {
 
   int get isRRect => fIsRRect ? fRRectOrOvalStartIdx : -1;
   int get isRect => fIsRect ? fRRectOrOvalStartIdx : -1;
-  ui.RRect _rrect;
   ui.RRect getRRect() => fIsRRect ? _getRRect() : null;
   ui.Rect getRect() => fIsRect ? _getRect() : null;
   bool get isRectCCW => fRRectOrOvalIsCCW;
@@ -210,8 +215,8 @@ class PathRef {
     if (pointCount != ref.countPoints()) {
       return false;
     }
-    for (int i = 0; i < pointCount; i++) {
-      if (fPoints[i] != ref.fPoints[i]) {
+    for (int i = 0, len = pointCount * 2; i < len; i++) {
+      if (_fPoints[i] != ref._fPoints[i]) {
         return false;
       }
     }
@@ -262,9 +267,11 @@ class PathRef {
     for (int i = 0; i < verbCount; i++) {
       fVerbs[i] = ref.fVerbs[i];
     }
-    for (int i = 0; i < pointCount; i++) {
-      fPoints[i] = ref.fPoints[i];
-    }
+    js_util.callMethod(_fPoints, 'set', [ref._fPoints]);
+//    for (int i = 0, len = pointCount * 2; i < len; i++) {
+//      _fPoints[i] = ref._fPoints[i];
+//    }
+
 //    if (ref.fConicWeights != null) {
 //      js_util.callMethod(fConicWeights, 'set', [ref.fConicWeights]);
 //    }
@@ -283,16 +290,29 @@ class PathRef {
     fIsOval = ref.fIsOval;
     fIsRRect = ref.fIsRRect;
     fIsRect = ref.fIsRect;
-    _rrect = ref._rrect;
     fRRectOrOvalIsCCW = ref.fRRectOrOvalIsCCW;
     fRRectOrOvalStartIdx = ref.fRRectOrOvalStartIdx;
     debugValidate();
   }
 
+  void _resizePoints(int newLength) {
+    if (newLength > _fPointsCapacity) {
+      _fPointsCapacity = newLength + 10;
+      Float32List newPoints = Float32List(_fPointsCapacity * 2);
+      js_util.callMethod(newPoints, 'set', [_fPoints]);
+      _fPoints = newPoints;
+    }
+    _fPointsLength = newLength;
+  }
+
   void _append(PathRef source) {
     final int pointCount = source.countPoints();
-    for (int i = 0; i < pointCount; i++) {
-      fPoints.add(source.fPoints[i]);
+    final int curLength = _fPointsLength;
+    _resizePoints(curLength + pointCount);
+    // TODO : replace with set.
+    final Float32List sourcePoints = source.points;
+    for (int source = pointCount * 2 - 1, dst = curLength * 2 - 1; source >= 0; source--, dst--) {
+      _fPoints[dst] = sourcePoints[source];
     }
     final int verbCount = source.countVerbs();
     for (int i = 0; i < verbCount; i++) {
@@ -330,9 +350,9 @@ class PathRef {
   // then interpolates based on weight.
   static void interpolate(PathRef ending, double weight, PathRef out) {
     assert(out.countPoints() == ending.countPoints());
-    final int count = out.countPoints();
-    final List<ui.Offset> outValues = out.fPoints;
-    final List<ui.Offset> inValues = ending.fPoints;
+    final int count = out.countPoints() * 2;
+    final Float32List outValues = out.points;
+    final Float32List inValues = ending.points;
     for (int index = 0; index < count; ++index) {
       outValues[index] = outValues[index] * weight + inValues[index] * (1.0 - weight);
     }
@@ -351,12 +371,12 @@ class PathRef {
       fIsFinite = true;
     } else {
       double minX, maxX, minY, maxY;
-      minX = maxX = fPoints[0].dx;
-      minY = maxY = fPoints[0].dy;
+      minX = maxX = _fPoints[0];
+      minY = maxY = _fPoints[1];
       fIsFinite = minX.isFinite && minY.isFinite;
-      for (int i = 1; i < pointCount; i++) {
-        final double x = fPoints[i].dx;
-        final double y = fPoints[i].dy;
+      for (int i = 2; i < 2 * pointCount; i += 2) {
+        final double x = _fPoints[i];
+        final double y = _fPoints[i + 1];
         if (x.isNaN || y.isNaN) {
           fIsFinite =false;
           fBounds = ui.Rect.zero;
@@ -381,7 +401,7 @@ class PathRef {
 
   /// Sets to initial state preserving internal storage.
   void rewind() {
-    fPoints.clear();
+    _fPointsLength = 0;
     fVerbs.clear();
     _conicWeights?.clear();
     _resetFields();
@@ -407,7 +427,7 @@ class PathRef {
   }
 
   void _setfPointsReserve(int count) {
-    // TODO
+    _resizePoints(count);
   }
 
   void _setfVerbsReserve(int count) {
@@ -419,17 +439,7 @@ class PathRef {
   }
 
   void _setfPointsCount(int count) {
-    if (count == 0) {
-      fPoints.clear();
-      return;
-    }
-    if (count > fPoints.length) {
-      for (int i = count - fPoints.length ; i > 0; i--) {
-        fPoints.add(null);
-      }
-    } else if (count < fPoints.length) {
-      fPoints.removeRange(count, fPoints.length);
-    }
+    _fPointsLength = count;
     fBoundsIsDirty = true;
   }
 
@@ -499,12 +509,11 @@ class PathRef {
       _conicWeights ??= [];
       _conicWeights.add(weight);
     }
-    int pts = fPoints.length;
-    for (int i = pCnt; i > 0; --i) {
-      fPoints.add(null);
-    }
+    final int ptsIndex = _fPointsLength;
+    _resizePoints(ptsIndex + pCnt);
+    _fPointsLength += pCnt;
     debugValidate();
-    return pts;
+    return ptsIndex;
   }
 
   /// Increases the verb count by numVbs and point count by the required amount.
@@ -561,17 +570,19 @@ class PathRef {
 
     if (SPath.kConicVerb == verb) {
       _conicWeights = [];
-      for (int i = pCnt; i > 0; --i) {
+      for (int i = numVbs; i > 0; --i) {
         _conicWeights.add(null);
       }
     }
-    int pts = fPoints.length;
-    for (int i = pCnt; i > 0; --i) {
+    for (int i = numVbs; i > 0; --i) {
       fVerbs.add(verb);
-      fPoints.add(null);
     }
+
+    final int ptsIndex = _fPointsLength;
+    _resizePoints(ptsIndex + pCnt);
+    _fPointsLength += pCnt;
     debugValidate();
-    return pts;
+    return ptsIndex;
   }
 
   /// Concatenates all verbs from 'path' onto our own verbs array. Increases the point count by the
@@ -592,7 +603,12 @@ class PathRef {
 
     final int numPts = path.countPoints();
     if (numPts != 0) {
-      fPoints.addAll(path.fPoints);
+      int curLength = countPoints();
+      _resizePoints(curLength + numPts);
+      _fPointsLength += numPts;
+      for (int i = 0; i < 2 * numPts; i++) {
+        _fPoints[curLength * 2 + i] = path._fPoints[i];
+      }
     }
 
     final int numConics = path.countWeights();
@@ -628,7 +644,6 @@ class PathRef {
 
   void setIsRRect(bool isRRect, bool isCCW, int start, ui.RRect rrect) {
     fIsRRect = isRRect;
-    _rrect = rrect;
     fRRectOrOvalIsCCW = isCCW;
     fRRectOrOvalStartIdx = start;
   }
@@ -639,9 +654,9 @@ class PathRef {
     fRRectOrOvalStartIdx = start;
   }
 
-  List<ui.Offset> getPoints() {
+  Float32List getPoints() {
     debugValidate();
-    return fPoints;
+    return _fPoints;
   }
 
   static const int kMinSize = 256;
@@ -689,10 +704,10 @@ class PathRef {
       final double boundsTop = fBounds.top;
       final double boundsRight = fBounds.right;
       final double boundsBottom = fBounds.bottom;
-      for (int i = 0; i < fPoints.length; ++i) {
-        final double pointX = fPoints[i].dx;
-        final double pointY = fPoints[i].dy;
-        final bool pointIsFinite = _isPointFinite(fPoints[i]);
+      for (int i = 0, len = _fPointsLength * 2; i < len; i += 2) {
+        final double pointX = _fPoints[i];
+        final double pointY = _fPoints[i + 1];
+        final bool pointIsFinite = pointX.isFinite && pointY.isFinite;
         if (pointIsFinite &&
             (pointX < boundsLeft || pointY < boundsTop ||
                 pointX > boundsRight || pointY > boundsBottom)) {
@@ -746,56 +761,45 @@ class PathRefIterator {
       return SPath.kDoneVerb;
     }
     int verb = pathRef.fVerbs[_verbIndex++];
+    final Float32List points = pathRef.points;
+    int pointIndex = _pointIndex;
     switch(verb) {
       case SPath.kMoveVerb:
-        final ui.Offset offset = pathRef.points[_pointIndex++];
-        outPts[0] = offset.dx;
-        outPts[1] = offset.dy;
+        outPts[0] = points[pointIndex++];
+        outPts[1] = points[pointIndex++];
         break;
       case SPath.kLineVerb:
-        final ui.Offset start = pathRef.points[_pointIndex - 1];
-        final ui.Offset offset = pathRef.points[_pointIndex++];
-        outPts[0] = start.dx;
-        outPts[1] = start.dy;
-        outPts[2] = offset.dx;
-        outPts[3] = offset.dy;
+        outPts[0] = points[pointIndex - 2];
+        outPts[1] = points[pointIndex - 1];
+        outPts[2] = points[pointIndex++];
+        outPts[3] = points[pointIndex++];
         break;
       case SPath.kConicVerb:
         _conicWeightIndex++;
-        final ui.Offset start = pathRef.points[_pointIndex - 1];
-        final ui.Offset p1 = pathRef.points[_pointIndex++];
-        final ui.Offset p2 = pathRef.points[_pointIndex++];
-        outPts[0] = start.dx;
-        outPts[1] = start.dy;
-        outPts[2] = p1.dx;
-        outPts[3] = p1.dy;
-        outPts[4] = p2.dx;
-        outPts[5] = p2.dy;
+        outPts[0] = points[pointIndex - 2];
+        outPts[1] = points[pointIndex - 1];
+        outPts[2] = points[pointIndex++];
+        outPts[3] = points[pointIndex++];
+        outPts[4] = points[pointIndex++];
+        outPts[5] = points[pointIndex++];
         break;
       case SPath.kQuadVerb:
-        final ui.Offset start = pathRef.points[_pointIndex - 1];
-        final ui.Offset p1 = pathRef.points[_pointIndex++];
-        final ui.Offset p2 = pathRef.points[_pointIndex++];
-        outPts[0] = start.dx;
-        outPts[1] = start.dy;
-        outPts[2] = p1.dx;
-        outPts[3] = p1.dy;
-        outPts[4] = p2.dx;
-        outPts[5] = p2.dy;
+        outPts[0] = points[pointIndex - 2];
+        outPts[1] = points[pointIndex - 1];
+        outPts[2] = points[pointIndex++];
+        outPts[3] = points[pointIndex++];
+        outPts[4] = points[pointIndex++];
+        outPts[5] = points[pointIndex++];
         break;
       case SPath.kCubicVerb:
-        final ui.Offset start = pathRef.points[_pointIndex - 1];
-        final ui.Offset p1 = pathRef.points[_pointIndex++];
-        final ui.Offset p2 = pathRef.points[_pointIndex++];
-        final ui.Offset p3 = pathRef.points[_pointIndex++];
-        outPts[0] = start.dx;
-        outPts[1] = start.dy;
-        outPts[2] = p1.dx;
-        outPts[3] = p1.dy;
-        outPts[4] = p2.dx;
-        outPts[5] = p2.dy;
-        outPts[6] = p3.dx;
-        outPts[7] = p3.dy;
+        outPts[0] = points[pointIndex - 2];
+        outPts[1] = points[pointIndex - 1];
+        outPts[2] = points[pointIndex++];
+        outPts[3] = points[pointIndex++];
+        outPts[4] = points[pointIndex++];
+        outPts[5] = points[pointIndex++];
+        outPts[6] = points[pointIndex++];
+        outPts[7] = points[pointIndex++];
         break;
       case SPath.kCloseVerb:
         break;
@@ -805,6 +809,7 @@ class PathRefIterator {
       default:
         throw FormatException('Unsupport Path verb $verb');
     }
+    _pointIndex = pointIndex;
     return verb;
   }
 

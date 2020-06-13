@@ -149,10 +149,10 @@ class SurfacePath implements ui.Path {
     int verbCount = pathRef.countPoints();
     if (2 == verbCount && pathRef.atVerb(0) == SPathVerb.kMove &&
         pathRef.atVerb(1) != SPathVerb.kLine) {
-      out[0] = pathRef.points[0].dx;
-      out[1] = pathRef.points[0].dy;
-      out[2] = pathRef.points[1].dx;
-      out[3] = pathRef.points[1].dy;
+      out[0] = pathRef.points[0];
+      out[1] = pathRef.points[1];
+      out[2] = pathRef.points[2];
+      out[3] = pathRef.points[3];
       return true;
     }
     return false;
@@ -174,8 +174,10 @@ class SurfacePath implements ui.Path {
     if (pointCount == 0) {
       moveTo(dx, dy);
     } else {
-      final ui.Offset lastPoint = pathRef.points[pointCount - 1];
-      moveTo(lastPoint.dx + dx, lastPoint.dy + dy);
+      int pointIndex = (pointCount - 1) * 2;
+      final double lastPointX = pathRef.points[pointIndex++];
+      final double lastPointY = pathRef.points[pointIndex];
+      moveTo(lastPointX + dx, lastPointY + dy);
     }
   }
 
@@ -185,9 +187,9 @@ class SurfacePath implements ui.Path {
       if (pathRef.countPoints() == 0) {
         x = y = 0.0;
       } else {
-        ui.Offset lastMoveToOffset = pathRef.fPoints[(-fLastMoveToIndex) - 1];
-        x = lastMoveToOffset.dx;
-        y = lastMoveToOffset.dy;
+        int pointIndex = 2 * (-fLastMoveToIndex - 1);
+        x = pathRef.points[pointIndex++];
+        y = pathRef.points[pointIndex];
       }
       moveTo(x, y);
     }
@@ -210,8 +212,10 @@ class SurfacePath implements ui.Path {
     if (pointCount == 0) {
       lineTo(dx, dy);
     } else {
-      final ui.Offset lastPoint = pathRef.points[pointCount - 1];
-      lineTo(lastPoint.dx + dx, lastPoint.dy + dy);
+      int pointIndex = (pointCount - 1) * 2;
+      final double lastPointX = pathRef.points[pointIndex++];
+      final double lastPointY = pathRef.points[pointIndex];
+      lineTo(lastPointX + dx, lastPointY + dy);
     }
   }
 
@@ -234,9 +238,9 @@ class SurfacePath implements ui.Path {
     if (pointCount == 0) {
       quadraticBezierTo(x1, y1, x2, y2);
     } else {
-      final ui.Offset lastPoint = pathRef.points[pointCount - 1];
-      final double lastPointX = lastPoint.dx;
-      final double lastPointY = lastPoint.dy;
+      int pointIndex = (pointCount - 1) * 2;
+      final double lastPointX = pathRef.points[pointIndex++];
+      final double lastPointY = pathRef.points[pointIndex];
       quadraticBezierTo(x1 + lastPointX, y1 + lastPointY, x2 + lastPointX,
           y2 + lastPointY);
     }
@@ -273,9 +277,9 @@ class SurfacePath implements ui.Path {
     if (pointCount == 0) {
       conicTo(x1, y1, x2, y2, w);
     } else {
-      final ui.Offset lastPoint = pathRef.points[pointCount - 1];
-      final double lastPointX = lastPoint.dx;
-      final double lastPointY = lastPoint.dy;
+      int pointIndex = (pointCount - 1) * 2;
+      final double lastPointX = pathRef.points[pointIndex++];
+      final double lastPointY = pathRef.points[pointIndex];
       conicTo(lastPointX + x1, lastPointY + y1, lastPointX + x2,
           lastPointY + y2, w);
     }
@@ -305,9 +309,9 @@ class SurfacePath implements ui.Path {
     if (pointCount == 0) {
       cubicTo(x1, y1, x2, y2, x3, y3);
     } else {
-      final ui.Offset lastPoint = pathRef.points[pointCount - 1];
-      final double lastPointX = lastPoint.dx;
-      final double lastPointY = lastPoint.dy;
+      int pointIndex = (pointCount - 1) * 2;
+      final double lastPointX = pathRef.points[pointIndex++];
+      final double lastPointY = pathRef.points[pointIndex];
       cubicTo(x1 + lastPointX, y1 + lastPointY,
           x2 + lastPointX, y2 + lastPointY,
           x3 + lastPointX, y3 + lastPointY);
@@ -642,9 +646,9 @@ class SurfacePath implements ui.Path {
     if (pointCount == 0) {
       lastPointX = lastPointY = 0;
     } else {
-      final ui.Offset lastPoint = pathRef.points[pointCount - 1];
-      lastPointX = lastPoint.dx;
-      lastPointY = lastPoint.dy;
+      int pointIndex = (pointCount - 1) * 2;
+      lastPointX = pathRef.points[pointIndex++];
+      lastPointY = pathRef.points[pointIndex];
     }
     // lastPointX, lastPointY are the coordinates of start point on path,
     // x,y is final point of arc.
@@ -824,9 +828,9 @@ class SurfacePath implements ui.Path {
     if (pointCount == 0) {
       lastPointX = lastPointY = 0;
     } else {
-      final ui.Offset lastPoint = pathRef.points[pointCount - 1];
-      lastPointX = lastPoint.dx;
-      lastPointY = lastPoint.dy;
+      int pointIndex = (pointCount - 1) * 2;
+      lastPointX = pathRef.points[pointIndex++];
+      lastPointY = pathRef.points[pointIndex];
     }
     arcToPoint(
       ui.Offset(lastPointX + arcEndDelta.dx, lastPointY + arcEndDelta.dy),
@@ -935,10 +939,10 @@ class SurfacePath implements ui.Path {
       return;
     }
     int pointIndex = pathRef.growForVerb(SPathVerb.kMove, 0);
-    pathRef.fPoints[pointIndex] = points[0];
+    pathRef.setPoint(pointIndex, points[0].dx, points[0].dy);
     pathRef.growForRepeatedVerb(SPathVerb.kLine, pointCount - 1);
     for (int i = 1; i < pointCount; i++) {
-      pathRef.fPoints[pointIndex + i] = points[i];
+      pathRef.setPoint(pointIndex + i, points[i].dx, points[i].dy);
     }
     if (close) {
       this.close();
@@ -1060,10 +1064,9 @@ class SurfacePath implements ui.Path {
               if (previousPointCount == 0) {
                 lastPointX = lastPointY = 0;
               } else {
-                final ui.Offset lastPoint = pathRef.fPoints[previousPointCount -
-                    1];
-                lastPointX = lastPoint.dx;
-                lastPointY = lastPoint.dy;
+                int listIndex = 2 * (previousPointCount - 1);
+                lastPointX = pathRef.points[listIndex++];
+                lastPointY = pathRef.points[listIndex];
               }
               // don't add lineTo if it is degenerate.
               if (fLastMoveToIndex < 0 || (previousPointCount != 0) ||
@@ -1102,16 +1105,16 @@ class SurfacePath implements ui.Path {
     }
     // Translate/transform all points.
     int newPointCount = pathRef.countPoints();
-    for (int p = previousPointCount; p < newPointCount; p++) {
+    final Float32List points = pathRef.points;
+    for (int p = previousPointCount * 2; p < (newPointCount * 2); p += 2) {
       if (matrix4 == null) {
-        pathRef.fPoints[p] = pathRef.fPoints[p].translate(offsetX, offsetY);
+        points[p] += offsetX;
+        points[p + 1] += offsetY;
       } else {
-        ui.Offset sourcePoint = pathRef.fPoints[p];
-        final double x = offsetX + sourcePoint.dx;
-        final double y = offsetY + sourcePoint.dy;
-        pathRef.fPoints[p] = ui.Offset((matrix4[0] * (x)) +
-            (matrix4[4] * y) + matrix4[12],
-            (matrix4[1] * x) + (matrix4[5] * y) + matrix4[13]);
+        final double x = offsetX + points[p];
+        final double y = offsetY + points[p + 1];
+        points[p] = (matrix4[0] * (x)) + (matrix4[4] * y) + matrix4[12];
+        points[p + 1] = (matrix4[1] * x) + (matrix4[5] * y) + matrix4[13];
       }
     }
   }
@@ -1241,8 +1244,10 @@ class SurfacePath implements ui.Path {
   void _shift(double offsetX, double offsetY) {
     pathRef._preEdit();
     final int pointCount = pathRef.countPoints();
-    for (int i = 0; i < pointCount; i++) {
-      pathRef.fPoints[i] = pathRef.fPoints[i].translate(offsetX, offsetY);
+    final Float32List points = pathRef.points;
+    for (int i = 0, len = pointCount * 2; i < len; i += 2) {
+      points[i] += offsetX;
+      points[i + 1] += offsetY;
     }
   }
 
@@ -1258,14 +1263,15 @@ class SurfacePath implements ui.Path {
   void _transform(Float64List m) {
     pathRef._preEdit();
     final int pointCount = pathRef.countPoints();
-    for (int i = 0; i < pointCount; i++) {
-      final ui.Offset point = pathRef.fPoints[i];
-      final double x = point.dx;
-      final double y = point.dy;
+    final Float32List points = pathRef.points;
+    for (int i = 0, len = pointCount * 2; i < len; i += 2) {
+      final double x = points[i];
+      final double y = points[i + 1];
       final double w = 1.0 / ((m[3] * x) + (m[7] * y) + m[15]);
       final double transformedX = ((m[0] * x) + (m[4] * y) + m[12]) * w;
       final double transformedY = ((m[1] * x) + (m[5] * y) + m[13]) * w;
-      pathRef.fPoints[i] = ui.Offset(transformedX, transformedY);
+      points[i] = transformedX;
+      points[i + 1] = transformedY;
     }
   }
 
@@ -1296,6 +1302,9 @@ class SurfacePath implements ui.Path {
     _CubicBounds cubicBounds;
     _QuadBounds quadBounds;
     _ConicBounds conicBounds;
+    if (pathRef.isRRect != -1 || pathRef.isOval != -1) {
+      return pathRef.getBounds();
+    }
     while ((verb = iter.next(points)) != SPath.kDoneVerb) {
       switch (verb) {
         case SPath.kMoveVerb:
@@ -1343,9 +1352,6 @@ class SurfacePath implements ui.Path {
         top = math.min(top, minY);
         bottom = math.max(bottom, maxY);
       }
-    }
-    if ((bottom - top) == 7 && (right-left) == 7) {
-      print('debugpoint');
     }
     return ltrbInitialized
       ? ui.Rect.fromLTRB(left, top, right, bottom)

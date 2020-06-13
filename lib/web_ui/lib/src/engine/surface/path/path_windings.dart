@@ -426,7 +426,8 @@ class PathIterator {
       _segmentState = SPathSegmentState.kAfterPrimitive;
       return ui.Offset(_moveToX, _moveToY);
     }
-    return pathRef.points[_pointIndex - 1];
+    int listIndex = 2 * (_pointIndex - 1);
+    return ui.Offset(pathRef.points[listIndex], pathRef.points[listIndex + 1]);
   }
 
   // Returns next verb and reads associated points into [outPts].
@@ -457,11 +458,12 @@ class PathIterator {
         if (_verbIndex == _verbCount) {
           return SPath.kDoneVerb;
         }
-        final ui.Offset offset = pathRef.points[_pointIndex++];
-        _moveToX = offset.dx;
-        _moveToY = offset.dy;
-        outPts[0] = offset.dx;
-        outPts[1] = offset.dy;
+        double offsetX = pathRef.points[_pointIndex++];
+        double offsetY = pathRef.points[_pointIndex++];
+        _moveToX = offsetX;
+        _moveToY = offsetY;
+        outPts[0] = offsetX;
+        outPts[1] = offsetY;
         _segmentState = SPathSegmentState.kAfterMove;
         _lastPointX = _moveToX;
         _lastPointY = _moveToY;
@@ -469,56 +471,44 @@ class PathIterator {
         break;
       case SPath.kLineVerb:
         final ui.Offset start = _constructMoveTo();
-        final ui.Offset offset = pathRef.points[_pointIndex++];
+        double offsetX = pathRef.points[_pointIndex++];
+        double offsetY = pathRef.points[_pointIndex++];
         outPts[0] = start.dx;
         outPts[1] = start.dy;
-        outPts[2] = offset.dx;
-        outPts[3] = offset.dy;
-        _lastPointX = offset.dx;
-        _lastPointY = offset.dy;
+        outPts[2] = offsetX;
+        outPts[3] = offsetY;
+        _lastPointX = offsetX;
+        _lastPointY = offsetY;
         break;
       case SPath.kConicVerb:
         _conicWeightIndex++;
         final ui.Offset start = _constructMoveTo();
-        final ui.Offset p1 = pathRef.points[_pointIndex++];
-        final ui.Offset p2 = pathRef.points[_pointIndex++];
         outPts[0] = start.dx;
         outPts[1] = start.dy;
-        outPts[2] = p1.dx;
-        outPts[3] = p1.dy;
-        outPts[4] = p2.dx;
-        outPts[5] = p2.dy;
-        _lastPointX = p2.dx;
-        _lastPointY = p2.dy;
+        outPts[2] = pathRef.points[_pointIndex++];
+        outPts[3] = pathRef.points[_pointIndex++];
+        _lastPointX = outPts[4] = pathRef.points[_pointIndex++];
+        _lastPointY = outPts[5] = pathRef.points[_pointIndex++];
         break;
       case SPath.kQuadVerb:
         final ui.Offset start = _constructMoveTo();
-        final ui.Offset p1 = pathRef.points[_pointIndex++];
-        final ui.Offset p2 = pathRef.points[_pointIndex++];
         outPts[0] = start.dx;
         outPts[1] = start.dy;
-        outPts[2] = p1.dx;
-        outPts[3] = p1.dy;
-        outPts[4] = p2.dx;
-        outPts[5] = p2.dy;
-        _lastPointX = p2.dx;
-        _lastPointY = p2.dy;
+        outPts[2] = pathRef.points[_pointIndex++];
+        outPts[3] = pathRef.points[_pointIndex++];
+        _lastPointX = outPts[4] = pathRef.points[_pointIndex++];
+        _lastPointY = outPts[5] = pathRef.points[_pointIndex++];
         break;
       case SPath.kCubicVerb:
         final ui.Offset start = _constructMoveTo();
-        final ui.Offset p1 = pathRef.points[_pointIndex++];
-        final ui.Offset p2 = pathRef.points[_pointIndex++];
-        final ui.Offset p3 = pathRef.points[_pointIndex++];
         outPts[0] = start.dx;
         outPts[1] = start.dy;
-        outPts[2] = p1.dx;
-        outPts[3] = p1.dy;
-        outPts[4] = p2.dx;
-        outPts[5] = p2.dy;
-        outPts[6] = p3.dx;
-        outPts[7] = p3.dy;
-        _lastPointX = p3.dx;
-        _lastPointY = p3.dy;
+        outPts[2] = pathRef.points[_pointIndex++];
+        outPts[3] = pathRef.points[_pointIndex++];
+        outPts[4] = pathRef.points[_pointIndex++];
+        outPts[5] = pathRef.points[_pointIndex++];
+        _lastPointX = outPts[6] = pathRef.points[_pointIndex++];
+        _lastPointY = outPts[7] = pathRef.points[_pointIndex++];
         break;
       case SPath.kCloseVerb:
         verb = _autoClose(outPts);
