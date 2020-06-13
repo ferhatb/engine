@@ -264,9 +264,10 @@ class PathRef {
     resetToSize(verbCount, pointCount, weightCount,
         additionalReserveVerbs, additionalReservePoints);
 
-    for (int i = 0; i < verbCount; i++) {
-      fVerbs[i] = ref.fVerbs[i];
-    }
+//    for (int i = 0; i < verbCount; i++) {
+//      fVerbs[i] = ref.fVerbs[i];
+//    }
+    fVerbs = List.from(ref.fVerbs);
     js_util.callMethod(_fPoints, 'set', [ref._fPoints]);
 //    for (int i = 0, len = pointCount * 2; i < len; i++) {
 //      _fPoints[i] = ref._fPoints[i];
@@ -276,10 +277,7 @@ class PathRef {
 //      js_util.callMethod(fConicWeights, 'set', [ref.fConicWeights]);
 //    }
     if (weightCount != 0) {
-      _conicWeights = [];
-      for (int i = 0; i < weightCount; i++) {
-        _conicWeights.add(ref._conicWeights[i]);
-      }
+      _conicWeights = List.from(ref._conicWeights);
     }
     fBoundsIsDirty = ref.fBoundsIsDirty;
     if (!fBoundsIsDirty) {

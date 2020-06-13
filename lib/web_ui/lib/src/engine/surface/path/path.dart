@@ -105,8 +105,10 @@ class SurfacePath implements ui.Path {
   /// reset to the origin.
   @override
   void reset() {
-    pathRef = PathRef();
-    _resetFields();
+    if (pathRef.countVerbs() != 0) {
+      pathRef = PathRef();
+      _resetFields();
+    }
   }
 
   ///  Sets [SurfacePath] to its initial state, preserving internal storage.
