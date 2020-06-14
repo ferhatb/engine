@@ -426,8 +426,7 @@ class PathIterator {
       _segmentState = SPathSegmentState.kAfterPrimitive;
       return ui.Offset(_moveToX, _moveToY);
     }
-    int listIndex = 2 * (_pointIndex - 1);
-    return ui.Offset(pathRef.points[listIndex], pathRef.points[listIndex + 1]);
+    return ui.Offset(pathRef.points[_pointIndex - 2], pathRef.points[_pointIndex - 1]);
   }
 
   // Returns next verb and reads associated points into [outPts].
@@ -443,7 +442,7 @@ class PathIterator {
         }
         return SPath.kDoneVerb;
     }
-    int verb = pathRef.fVerbs[_verbIndex++];
+    int verb = pathRef._fVerbs[_verbIndex++];
     switch(verb) {
       case SPath.kMoveVerb:
         if (_needClose) {

@@ -88,9 +88,9 @@ class SurfacePath implements ui.Path {
 
   /// Returns true if [SurfacePath] contain equal verbs and equal weights.
   bool isInterpolatable(SurfacePath compare) =>
-    compare.pathRef.countVerbs() == pathRef.countVerbs() &&
-    compare.pathRef.countPoints() == pathRef.countPoints() &&
-    compare.pathRef.countWeights() == pathRef.countWeights();
+      compare.pathRef.countVerbs() == pathRef.countVerbs() &&
+          compare.pathRef.countPoints() == pathRef.countPoints() &&
+          compare.pathRef.countWeights() == pathRef.countWeights();
 
   bool interpolate(SurfacePath ending, double weight, SurfacePath out) {
     int pointCount = pathRef.countPoints();
@@ -136,7 +136,7 @@ class SurfacePath implements ui.Path {
   bool get isLastContourClosed {
     int verbCount = pathRef.countVerbs();
     return verbCount == 0 ? false :
-      (pathRef.atVerb(verbCount - 1) == SPathVerb.kClose);
+    (pathRef.atVerb(verbCount - 1) == SPathVerb.kClose);
   }
 
   /// Returns true for finite SkPoint array values between negative SK_ScalarMax
@@ -387,7 +387,7 @@ class SurfacePath implements ui.Path {
       pathRef.setPoint(pointIndex0, rect.left, rect.top);
     }
     pathRef.setIsRect(isRect, direction == SPathDirection.kCCW,
-      0);
+        0);
     // SkAutoDisableDirectionCheck.
     _firstDirection = finalDirection;
     // TODO: optimize by setting pathRef bounds if bounds are already computed.
@@ -490,7 +490,7 @@ class SurfacePath implements ui.Path {
     // dot product sign to distinguish between the two.
     if (absY <= SPath.scalarNearlyZero && x > 0 && (
         (y >= 0 && dir == SPathDirection.kCW) ||
-        (y <= 0 && dir == SPathDirection.kCCW))) {
+            (y <= 0 && dir == SPathDirection.kCCW))) {
       // No conics, just use single line to connect point.
       if (forceMoveTo) {
         moveTo(px, py);
@@ -639,12 +639,12 @@ class SurfacePath implements ui.Path {
   /// as reference for implementation.
   @override
   void arcToPoint(
-    ui.Offset arcEnd, {
-    ui.Radius radius = ui.Radius.zero,
-    double rotation = 0.0,
-    bool largeArc = false,
-    bool clockwise = true,
-  }) {
+      ui.Offset arcEnd, {
+        ui.Radius radius = ui.Radius.zero,
+        double rotation = 0.0,
+        bool largeArc = false,
+        bool clockwise = true,
+      }) {
     assert(offsetIsValid(arcEnd));
     assert(radiusIsValid(radius));
 
@@ -822,12 +822,12 @@ class SurfacePath implements ui.Path {
   /// describe an arc.
   @override
   void relativeArcToPoint(
-    ui.Offset arcEndDelta, {
-    ui.Radius radius = ui.Radius.zero,
-    double rotation = 0.0,
-    bool largeArc = false,
-    bool clockwise = true,
-  }) {
+      ui.Offset arcEndDelta, {
+        ui.Radius radius = ui.Radius.zero,
+        double rotation = 0.0,
+        bool largeArc = false,
+        bool clockwise = true,
+      }) {
     assert(offsetIsValid(arcEndDelta));
     assert(radiusIsValid(radius));
 
@@ -841,11 +841,11 @@ class SurfacePath implements ui.Path {
       lastPointY = pathRef.points[pointIndex];
     }
     arcToPoint(
-      ui.Offset(lastPointX + arcEndDelta.dx, lastPointY + arcEndDelta.dy),
-      radius: radius,
-      rotation: rotation,
-      largeArc: largeArc,
-      clockwise: clockwise);
+        ui.Offset(lastPointX + arcEndDelta.dx, lastPointY + arcEndDelta.dy),
+        radius: radius,
+        rotation: rotation,
+        largeArc: largeArc,
+        clockwise: clockwise);
   }
 
   /// Adds a new subpath that consists of a curve that forms the
@@ -864,7 +864,6 @@ class SurfacePath implements ui.Path {
     assert(direction != SPathDirection.kUnknown);
     bool isOval = _hasOnlyMoveTos();
 
-    pathRef.incReserve(6, 0);
 
     final double weight = SPath.scalarRoot2Over2;
     final double left = oval.left;
@@ -1137,7 +1136,7 @@ class SurfacePath implements ui.Path {
   void extendWithPath(ui.Path path, ui.Offset offset, {Float64List matrix4}) {
     assert(path != null); // path is checked on the engine side
     assert(offsetIsValid(offset));
-    _addPath(path, offset.dx, offset.dy, toMatrix32(matrix4), SPathAddPathMode.kExtend);
+    _addPath(path, offset.dx, offset.dy, matrix4 == null ? null : toMatrix32(matrix4), SPathAddPathMode.kExtend);
   }
 
   /// Tests to see if the given point is within the path. (That is, whether the
@@ -1176,14 +1175,14 @@ class SurfacePath implements ui.Path {
       return (onCurveCount ^ (isInverse ? 1 : 0)) != 0;
     }
     if ((onCurveCount & 1) != 0 || evenOddFill) {
-        return (onCurveCount & 1) != 0 ^ (isInverse ? 1: 0);
+      return (onCurveCount & 1) != 0 ^ (isInverse ? 1: 0);
     }
     // If the point touches an even number of curves, and the fill is winding,
     // check for coincidence. Count coincidence as places where the on curve
     // points have identical tangents.
     final PathIterator iter = PathIterator(pathRef, true);
     final Float32List _buffer = Float32List(8 + 10);
-    List<ui.Offset> tangents;
+    List<ui.Offset> tangents = [];
     bool done = false;
     final double x = point.dx;
     final double y = point.dy;
@@ -1238,7 +1237,7 @@ class SurfacePath implements ui.Path {
   /// subpath translated by the given offset.
   @override
   SurfacePath shift(ui.Offset offset) =>
-    SurfacePath.shiftedFrom(this, offset.dx, offset.dy);
+      SurfacePath.shiftedFrom(this, offset.dx, offset.dy);
 
   /// Returns a copy of the path with all the segments of every
   /// sub path transformed by the given matrix.
@@ -1344,8 +1343,8 @@ class SurfacePath implements ui.Path {
       }
     }
     return ltrbInitialized
-      ? ui.Rect.fromLTRB(left, top, right, bottom)
-      : ui.Rect.zero;
+        ? ui.Rect.fromLTRB(left, top, right, bottom)
+        : ui.Rect.zero;
   }
 
   /// Creates a [PathMetrics] object for this path.
@@ -1362,13 +1361,13 @@ class SurfacePath implements ui.Path {
   ///
   /// Used for web optimization of physical shape represented as
   /// a persistent div.
-  ui.RRect get webOnlyPathAsRoundedRect => null; //pathRef.getRRect();
+  ui.RRect get webOnlyPathAsRoundedRect => pathRef.getRRect();
 
   /// Detects if path is simple rectangle and returns rectangle or null.
   ///
   /// Used for web optimization of physical shape represented as
   /// a persistent div.
-  ui.Rect get webOnlyPathAsRect => null; //pathRef.getRect();
+  ui.Rect get webOnlyPathAsRect => pathRef.getRect();
 
   /// Detects if path is simple oval and returns bounding rectangle or null.
   ///
@@ -1401,10 +1400,10 @@ class SurfacePath implements ui.Path {
 // moveTo/lineTo.
 ui.Offset _arcIsLonePoint(ui.Rect oval, double startAngle, double sweepAngle) {
   if (0 == sweepAngle && (0 == startAngle || 360.0 == startAngle)) {
-      // This path can be used to move into and out of ovals. If not
-      // treated as a special case the moves can distort the oval's
-      // bounding box (and break the circle special case).
-      return ui.Offset(oval.right, oval.center.dy);
+    // This path can be used to move into and out of ovals. If not
+    // treated as a special case the moves can distort the oval's
+    // bounding box (and break the circle special case).
+    return ui.Offset(oval.right, oval.center.dy);
   }
   return null;
 }
@@ -1421,22 +1420,22 @@ double _computeMinScale(double radius1, double radius2, double limit, double sca
 }
 
 bool _isSimple2dTransform(Float32List m) =>
-  m[15] == 1.0 &&  // start reading from the last element to eliminate range checks in subsequent reads.
-  m[14] == 0.0 && // z translation is NOT simple
-  // m[13] - y translation is simple
-  // m[12] - x translation is simple
-  m[11] == 0.0 &&
-  m[10] == 1.0 &&
-  m[9] == 0.0 &&
-  m[8] == 0.0 &&
-  m[7] == 0.0 &&
-  m[6] == 0.0 &&
-  // m[5] - scale y is simple
-  // m[4] - 2D rotation is simple
-  m[3] == 0.0 &&
-  m[2] == 0.0;
-  // m[1] - 2D rotation is simple
-  // m[0] - scale x is simple
+    m[15] == 1.0 &&  // start reading from the last element to eliminate range checks in subsequent reads.
+        m[14] == 0.0 && // z translation is NOT simple
+        // m[13] - y translation is simple
+        // m[12] - x translation is simple
+        m[11] == 0.0 &&
+        m[10] == 1.0 &&
+        m[9] == 0.0 &&
+        m[8] == 0.0 &&
+        m[7] == 0.0 &&
+        m[6] == 0.0 &&
+        // m[5] - scale y is simple
+        // m[4] - 2D rotation is simple
+        m[3] == 0.0 &&
+        m[2] == 0.0;
+// m[1] - 2D rotation is simple
+// m[0] - scale x is simple
 
 double _lengthSquared(ui.Offset offset) {
   final double dx = offset.dx;
