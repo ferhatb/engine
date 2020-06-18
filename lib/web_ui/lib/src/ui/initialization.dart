@@ -34,12 +34,14 @@ Future<void> _initializePlatform({
     await engine.initializeSkia();
   }
 
-  assetManager ??= const engine.AssetManager();
+  assetManager ??= engine.AssetManager();
   await webOnlySetAssetManager(assetManager);
+  print('Font Collection 2 $_fontCollection');
   if (engine.experimentalUseSkia) {
     await engine.skiaFontCollection.ensureFontsLoaded();
   } else {
-    await _fontCollection!.ensureFontsLoaded();
+    print('Font Collection 3 $_fontCollection');
+    await (_fontCollection!.ensureFontsLoaded());
   }
 
   _webOnlyIsInitialized = true;
@@ -59,6 +61,7 @@ bool get webOnlyIsInitialized => _webOnlyIsInitialized;
 Future<void> webOnlySetAssetManager(engine.AssetManager assetManager) async {
   assert(assetManager != null, 'Cannot set assetManager to null'); // ignore: unnecessary_null_comparison
   if (assetManager == _assetManager) {
+    print('Asset manager equal skipping $_fontCollection');
     return;
   }
 
@@ -67,8 +70,10 @@ Future<void> webOnlySetAssetManager(engine.AssetManager assetManager) async {
   if (engine.experimentalUseSkia) {
     engine.ensureSkiaFontCollectionInitialized();
   } else {
+    print('Font Collection 0 $_fontCollection');
     _fontCollection ??= engine.FontCollection();
     _fontCollection!.clear();
+    print('Font Collection 1 $_fontCollection');
   }
 
 
@@ -76,7 +81,7 @@ Future<void> webOnlySetAssetManager(engine.AssetManager assetManager) async {
     if (engine.experimentalUseSkia) {
       await engine.skiaFontCollection.registerFonts(_assetManager!);
     } else {
-      await _fontCollection!.registerFonts(_assetManager!);
+      await (_fontCollection!.registerFonts(_assetManager!));
     }
   }
 
