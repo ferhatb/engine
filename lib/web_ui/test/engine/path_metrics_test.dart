@@ -103,7 +103,7 @@ void main() {
       path.addRRect(RRect.fromLTRBR(20, 30, 220, 130, Radius.elliptical(8, 4)));
       final List<double> contourLengths = computeLengths(path.computeMetrics());
       expect(contourLengths.length, 1);
-      expect(contourLengths[0], within(distance: kTolerance, from: 590.361));
+      expect(contourLengths[0], within(distance: kTolerance, from: 590.408));
     });
 
     test('arcToPoint < 90 degrees', () {
@@ -132,7 +132,7 @@ void main() {
             rotation: 0.0);
       final List<double> contourLengths = computeLengths(path.computeMetrics());
       expect(contourLengths.length, 1);
-      expect(contourLengths[0], within(distance: kTolerance, from: 156.994));
+      expect(contourLengths[0], within(distance: kTolerance, from: 156.827));
     });
 
     test('arcToPoint 180 degrees', () {
@@ -161,7 +161,7 @@ void main() {
             rotation: 0.0);
       final List<double> contourLengths = computeLengths(path.computeMetrics());
       expect(contourLengths.length, 1);
-      expect(contourLengths[0], within(distance: kTolerance, from: 313.989));
+      expect(contourLengths[0], within(distance: kTolerance, from: 313.654));
     });
 
     test('arcToPoint 270 degrees', () {
@@ -190,7 +190,7 @@ void main() {
             rotation: 0.0);
       final List<double> contourLengths = computeLengths(path.computeMetrics());
       expect(contourLengths.length, 1);
-      expect(contourLengths[0], within(distance: kTolerance, from: 470.983));
+      expect(contourLengths[0], within(distance: kTolerance, from: 470.482));
     });
 
     test('arcToPoint 270 degrees rx!=ry', () {
@@ -219,7 +219,7 @@ void main() {
             rotation: 0.0);
       final List<double> contourLengths = computeLengths(path.computeMetrics());
       expect(contourLengths.length, 1);
-      expect(contourLengths[0], within(distance: kTolerance, from: 363.090));
+      expect(contourLengths[0], within(distance: kTolerance, from: 362.733));
     });
   });
 }

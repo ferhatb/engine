@@ -429,6 +429,8 @@ class PathIterator {
     return ui.Offset(pathRef.points[_pointIndex - 2], pathRef.points[_pointIndex - 1]);
   }
 
+  int peek() => pathRef._fVerbs[_verbIndex];
+
   // Returns next verb and reads associated points into [outPts].
   int next(Float32List outPts) {
     if (_verbIndex == pathRef.countVerbs()) {

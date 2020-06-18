@@ -377,4 +377,16 @@ void main() {
     expect(path2.contains(Offset(100, 100)), isFalse);
     expect(path2.contains(Offset(50, 100)), isFalse);
   });
+
+  test('Should set segment masks', () {
+    SurfacePath path = new SurfacePath();
+    path.pathRef.computeSegmentMask();
+    expect(path.pathRef.segmentMasks , 0);
+    path.moveTo(20, 40);
+    path.pathRef.computeSegmentMask();
+    expect(path.pathRef.segmentMasks , 0);
+    path.lineTo(200, 40);
+    path.pathRef.computeSegmentMask();
+    expect(path.pathRef.segmentMasks, SPathSegmentMask.kLine_SkPathSegmentMask);
+  });
 }

@@ -5,20 +5,23 @@
 // @dart = 2.6
 part of engine;
 
-/// Holds the path verbs and points.
+/// Stores the path verbs, points and conic weights.
 ///
 /// This is a Dart port of Skia SkPathRef class.
 /// For reference Flutter Gallery average points array size is 5.9, max 25
 /// we start with [_pointsCapacity] 10 to reduce allocations during growth.
 ///
-/// The points and verbs are stored in a single allocation. The points are at
-/// the beginning of the allocation while the verbs are stored at end of the
-/// allocation, in reverse order. Thus the points and verbs both grow into the
-/// middle of the allocation until they meet.
-///
 /// Unlike native skia GenID is not supported since we don't have requirement
 /// to update caches due to content changes.
 class PathRef {
+  PathRef() {
+    _fPointsCapacity = kInitialPointsCapacity;
+    _fPoints = Float32List(kInitialPointsCapacity * 2);
+    _fVerbsCapacity = kInitialVerbsCapacity;
+    _fVerbs = Uint8List(kInitialVerbsCapacity);
+    _resetFields();
+  }
+
   // Value to use to check against to insert move(0,0) when a command
   // is added without moveTo.
   static const int kInitialLastMoveToIndex = -1;
@@ -31,10 +34,22 @@ class PathRef {
   static const int kLegacyIsOval_SerializationShift = 24;              // requires 1 bit, ignored.
   static const int kSegmentMask_SerializationShift = 0;                // requires 4 bits (deprecated)
 
-  PathRef() {
-    _resetFields();
-  }
+  static const int kInitialPointsCapacity = 8;
+  static const int kInitialVerbsCapacity = 8;
+  /// Returns a const pointer to the first point.
+  ui.Rect fBounds;
+  ui.Rect cachedBounds;
+  int _fPointsCapacity = 0;
+  int _fPointsLength = 0;
+  int _fVerbsCapacity = 0;
+  Float32List _fPoints;
+  Uint8List _fVerbs;
+  int _fVerbsLength = 0;
+  int _conicWeightsCapacity = 0;
+  Float32List _conicWeights;
+  int _conicWeightsLength = 0;
 
+  // Resets state to initial except points and verbs storage.
   void _resetFields() {
     fBoundsIsDirty = true;    // this also invalidates fIsFinite
     fSegmentMask = 0;
@@ -50,43 +65,57 @@ class PathRef {
     }());
   }
 
+  /// Given a point index stores [x],[y].
   void setPoint(int pointIndex, double x, double y) {
     assert(pointIndex < _fPointsLength);
+    assert(_isPointFinite(x, y));
     int index = pointIndex * 2;
     _fPoints[index] = x;
     _fPoints[index + 1] = y;
   }
 
-  // TODO: optimize, for now we do a deepcopy.
+  /// Creates a copy of the path by pointing new path to a current
+  /// points,verbs and weights arrays. If original path is mutated by adding
+  /// more verbs, this copy only returns path at the time of copy and shares
+  /// typed arrays of original path.
   PathRef._shallowCopy(PathRef ref) {
-    copy(ref, 0, 0);
+    _fVerbsCapacity = ref._fVerbsCapacity;
+    _fVerbsLength = ref._fVerbsLength;
+    _fVerbs = ref._fVerbs;
+    _fPointsCapacity = ref._fPointsCapacity;
+    _fPointsLength = ref._fPointsLength;
+    _fPoints = ref._fPoints;
+    _conicWeightsCapacity = ref._conicWeightsCapacity;
+    _conicWeightsLength = ref._conicWeightsLength;
+    _conicWeights = ref._conicWeights;
+    fBoundsIsDirty = ref.fBoundsIsDirty;
+    if (!fBoundsIsDirty) {
+      fBounds = ref.fBounds;
+      cachedBounds = ref.cachedBounds;
+      fIsFinite = ref.fIsFinite;
+    }
+    fSegmentMask = ref.fSegmentMask;
+    fIsOval = ref.fIsOval;
+    fIsRRect = ref.fIsRRect;
+    fIsRect = ref.fIsRect;
+    fRRectOrOvalIsCCW = ref.fRRectOrOvalIsCCW;
+    fRRectOrOvalStartIdx = ref.fRRectOrOvalStartIdx;
+    debugValidate();
   }
 
   /// Gets a path ref with no verbs or points.
   static PathRef createEmpty() => _empty;
   static final PathRef _empty = PathRef().._computeBounds();
   static PathRef gEmpty = null;
-  static const int kInitialPointsCapacity = 8;
-  static const int kInitialVerbsCapacity = 8;
-  /// Returns a const pointer to the first point.
-  ui.Rect   fBounds;
-  int _fPointsCapacity = kInitialPointsCapacity;
-  Float32List _fPoints = Float32List(kInitialPointsCapacity * 2);
-  int _fPointsLength = 0;
-  int _fVerbsCapacity = kInitialVerbsCapacity;
-  Uint8List _fVerbs = Uint8List(kInitialVerbsCapacity);
-  int _fVerbsLength = 0;
 
   Float32List get points => _fPoints;
-  //Float32List get conicWeights => _conicWeights;
-  //Float32List _conicWeights;
-  List<double> _conicWeights;
+  Float32List get conicWeights => _conicWeights;
 
   int countPoints() => _fPointsLength;
   int countVerbs() => _fVerbsLength;
-  int countWeights() => _conicWeights?.length ?? 0;
+  int countWeights() => _conicWeightsLength;
 
-  /// Convenience methods for getting to a verb or point by index.
+  /// Convenience method for reading verb at index.
   int atVerb(int index) { return _fVerbs[index]; }
   ui.Offset atPoint(int index) { return ui.Offset(_fPoints[index * 2], _fPoints[index * 2 + 1]); }
   double atWeight(int index) { return _conicWeights[index]; }
@@ -132,16 +161,16 @@ class PathRef {
     return fBounds;
   }
 
+  /// Reconstructs Rect from path commands.
   ui.Rect _getRect() {
-    // Reconstructs Rect from path commands.
     return ui.Rect.fromLTRB(atPoint(0).dx, atPoint(0).dy,
         atPoint(1).dx, atPoint(2).dy);
   }
 
-  // Reconstructs RRect from path commands.
-  //
-  // Expect 4 Conics and lines between.
-  // Use conic points to calculate corner radius.
+  /// Reconstructs RRect from path commands.
+  ///
+  /// Expect 4 Conics and lines between.
+  /// Use conic points to calculate corner radius.
   ui.RRect _getRRect() {
     ui.Rect bounds = getBounds();
     // Radii x,y of 4 corners
@@ -177,11 +206,15 @@ class PathRef {
             dx = vector1_0x.abs();
             dy = vector1_0y.abs();
           }
-          final int checkCornerIndex = (controlPx == bounds.left) ?
-              ((controlPy == bounds.top) ? _Corner.kUpperLeft : _Corner.kLowerLeft)
-              : (controlPy == bounds.top ? _Corner.kUpperRight : _Corner.kLowerRight);
-          assert(checkCornerIndex == cornerIndex);
-          assert(radii[cornerIndex] == null);
+          if (assertionsEnabled) {
+            final int checkCornerIndex = (controlPx == bounds.left) ?
+            ((controlPy == bounds.top) ? _Corner.kUpperLeft : _Corner
+                .kLowerLeft)
+                : (controlPy == bounds.top ? _Corner.kUpperRight : _Corner
+                .kLowerRight);
+            assert(checkCornerIndex == cornerIndex);
+            assert(radii[cornerIndex] == null);
+          }
           radii[cornerIndex] = ui.Radius.elliptical(dx, dy);
           ++cornerIndex;
         } else {
@@ -256,15 +289,18 @@ class PathRef {
     return true;
   }
 
+  /// Returns a new path by translating [source] by [offsetX], [offsetY].
   PathRef.shiftedFrom(PathRef source, double offsetX, double offsetY) {
+    _conicWeightsCapacity = source._conicWeightsCapacity;
+    _conicWeightsLength = source._conicWeightsLength;
     if (source._conicWeights != null) {
-      _conicWeights = List.from(source._conicWeights);
+      _conicWeights = Float32List(_conicWeightsCapacity);
+      js_util.callMethod(_conicWeights, 'set', <dynamic>[source._conicWeights]);
     }
     _fVerbsCapacity = source._fVerbsCapacity;
     _fVerbsLength = source._fVerbsLength;
     _fVerbs = Uint8List(_fVerbsCapacity);
     js_util.callMethod(_fVerbs, 'set', <dynamic>[source._fVerbs]);
-    assert(_fVerbs[0] != 0);
 
     _fPointsCapacity = source._fPointsCapacity;
     _fPointsLength = source._fPointsLength;
@@ -278,6 +314,7 @@ class PathRef {
     fBoundsIsDirty = source.fBoundsIsDirty;
     if (!fBoundsIsDirty) {
       fBounds = source.fBounds.translate(offsetX, offsetY);
+      cachedBounds = source.cachedBounds;
       fIsFinite = source.fIsFinite;
     }
     fSegmentMask = source.fSegmentMask;
@@ -289,7 +326,7 @@ class PathRef {
     debugValidate();
   }
 
-  /// Copies contents from [ref].
+  /// Copies contents from a source path [ref].
   void copy(PathRef ref, int additionalReserveVerbs,
       int additionalReservePoints) {
     ref.debugValidate();
@@ -299,25 +336,18 @@ class PathRef {
     resetToSize(verbCount, pointCount, weightCount,
         additionalReserveVerbs, additionalReservePoints);
 
-//    for (int i = 0; i < verbCount; i++) {
-//      fVerbs[i] = ref.fVerbs[i];
-//    }
     js_util.callMethod(_fVerbs, 'set', [ref._fVerbs]);
     js_util.callMethod(_fPoints, 'set', [ref._fPoints]);
-    assert(_fVerbs[0] != 0);
-//    for (int i = 0, len = pointCount * 2; i < len; i++) {
-//      _fPoints[i] = ref._fPoints[i];
-//    }
-
-//    if (ref.fConicWeights != null) {
-//      js_util.callMethod(fConicWeights, 'set', [ref.fConicWeights]);
-//    }
-    if (weightCount != 0) {
-      _conicWeights = List.from(ref._conicWeights);
+    if (ref._conicWeights == null) {
+      _conicWeights = null;
+    } else {
+      js_util.callMethod(_conicWeights, 'set', [ref._conicWeights]);
     }
+    assert(_fVerbs[0] != 0);
     fBoundsIsDirty = ref.fBoundsIsDirty;
     if (!fBoundsIsDirty) {
       fBounds = ref.fBounds;
+      cachedBounds = ref.cachedBounds;
       fIsFinite = ref.fIsFinite;
     }
     fSegmentMask = ref.fSegmentMask;
@@ -349,11 +379,22 @@ class PathRef {
     _fVerbsLength = newLength;
   }
 
+  void _resizeConicWeights(int newLength) {
+    if (newLength > _conicWeightsCapacity) {
+      _conicWeightsCapacity = newLength + 4;
+      Float32List newWeights = Float32List(_conicWeightsCapacity);
+      if (_conicWeights != null) {
+        js_util.callMethod(newWeights, 'set', <dynamic>[_conicWeights]);
+      }
+      _conicWeights = newWeights;
+    }
+    _conicWeightsLength = newLength;
+  }
+
   void _append(PathRef source) {
     final int pointCount = source.countPoints();
     final int curLength = _fPointsLength;
     _resizePoints(curLength + pointCount);
-    // TODO : replace with set.
     final Float32List sourcePoints = source.points;
     for (int source = pointCount * 2 - 1, dst = curLength * 2 - 1; source >= 0; source--, dst--) {
       _fPoints[dst] = sourcePoints[source];
@@ -364,17 +405,18 @@ class PathRef {
     for (int i = 0; i < newVerbCount; i++) {
       _fVerbs[verbCount + i] = source._fVerbs[i];
     }
-    final int weightCount = source.countWeights();
-    if (weightCount != 0) {
-      _conicWeights ??= [];
-      for (int i = 0; i < weightCount; i++) {
-        _conicWeights.add(source._conicWeights[i]);
+    if (source._conicWeights != null) {
+      final int weightCount = countWeights();
+      final int newWeightCount = source.countWeights();
+      _resizeConicWeights(weightCount + newWeightCount);
+      for (int i = 0; i < newWeightCount; i++) {
+        _conicWeights[weightCount + i] = source._conicWeights[i];
       }
     }
     fBoundsIsDirty = true;
   }
 
-  // Doesn't read fSegmentMask, but (re)computes it from the verbs array
+  /// Doesn't read fSegmentMask, but (re)computes it from the verbs array
   int computeSegmentMask() {
     Uint8List verbs = _fVerbs;
     int mask = 0;
@@ -391,9 +433,9 @@ class PathRef {
     return mask;
   }
 
-  // This is incorrectly defined as instance method on SkPathRef although
-  // SkPath instance method first makes a copy of itself into out and
-  // then interpolates based on weight.
+  /// This is incorrectly defined as instance method on SkPathRef although
+  /// SkPath instance method first makes a copy of itself into out and
+  /// then interpolates based on weight.
   static void interpolate(PathRef ending, double weight, PathRef out) {
     assert(out.countPoints() == ending.countPoints());
     final int count = out.countPoints() * 2;
@@ -403,15 +445,18 @@ class PathRef {
       outValues[index] = outValues[index] * weight + inValues[index] * (1.0 - weight);
     }
     out.fBoundsIsDirty = true;
-    out._preEdit();
+    out.startEdit();
   }
 
-  // called, if dirty, by getBounds()
+  /// Computes bounds based on points.
+  ///
+  /// Used by getBounds() and cached.
   void _computeBounds() {
     debugValidate();
     assert(fBoundsIsDirty);
     int pointCount = countPoints();
     fBoundsIsDirty = false;
+    cachedBounds = null;
     if (pointCount == 0) {
       fBounds = ui.Rect.zero;
     } else {
@@ -429,20 +474,12 @@ class PathRef {
       fBounds = ui.Rect.fromLTRB(minX, minY, maxX, maxY);
     }
   }
-//
-//  /// Makes additional room but does not change the counts.
-//  void incReserve(int additionalVerbs, int additionalPoints) {
-//    debugValidate();
-//    _setfPointsReserve(countPoints() + additionalPoints);
-//    _setfVerbsReserve(countVerbs() + additionalVerbs);
-//    debugValidate();
-//  }
 
   /// Sets to initial state preserving internal storage.
   void rewind() {
     _fPointsLength = 0;
     _fVerbsLength = 0;
-    _conicWeights?.clear();
+    _conicWeightsLength = 0;
     _resetFields();
   }
 
@@ -455,32 +492,17 @@ class PathRef {
     fBoundsIsDirty = true;      // this also invalidates fIsFinite
 
     fSegmentMask = 0;
-    _preEdit();
+    startEdit();
 
     _resizePoints(pointCount);
     _resizeVerbs(verbCount);
-    _setfConicWeightsCount(conicCount);
+    _resizeConicWeights(conicCount);
     debugValidate();
   }
 
-  void _setfConicWeightsCount(int count) {
-    // TODO
-  }
-
-  void _setfPointsCount(int count) {
-    assert(count <= _fPointsCapacity);
-    _fPointsLength = count;
-    fBoundsIsDirty = true;
-  }
-
-  void _setfVerbsCount(int count) {
-    assert(count <= _fVerbsCapacity);
-    _fVerbsLength = count;
-  }
-
-  /// Increases the verb count 1, records the new verb, and creates room for the requisite number
-  /// of additional points. A pointer to the first point is returned. Any new points are
-  /// uninitialized.
+  /// Increases the verb count 1, records the new verb, and creates room for
+  /// the requisite number of additional points. A pointer to the first point
+  /// is returned. Any new points are uninitialized.
   int growForVerb(int verb, double weight) {
     debugValidate();
     int pCnt;
@@ -524,15 +546,16 @@ class PathRef {
 
     fSegmentMask |= mask;
     fBoundsIsDirty = true;  // this also invalidates fIsFinite
-    _preEdit();
+    startEdit();
 
     int verbCount = countVerbs();
     _resizeVerbs(verbCount + 1);
     _fVerbs[verbCount] = verb;
 
     if (SPath.kConicVerb == verb) {
-      _conicWeights ??= [];
-      _conicWeights.add(weight);
+      final int weightCount = countWeights();
+      _resizeConicWeights(weightCount + 1);
+      _conicWeights[weightCount] = weight;
     }
     final int ptsIndex = _fPointsLength;
     _resizePoints(ptsIndex + pCnt);
@@ -548,7 +571,7 @@ class PathRef {
   /// This is an optimized version for [SPath.addPolygon].
   int growForRepeatedVerb(int /*SkPath::Verb*/ verb, int numVbs) {
     debugValidate();
-    _preEdit();
+    startEdit();
     int pCnt;
     int mask = 0;
     switch (verb) {
@@ -590,13 +613,10 @@ class PathRef {
 
     fSegmentMask |= mask;
     fBoundsIsDirty = true;  // this also invalidates fIsFinite
-    _preEdit();
+    startEdit();
 
     if (SPath.kConicVerb == verb) {
-      _conicWeights = [];
-      for (int i = numVbs; i > 0; --i) {
-        _conicWeights.add(null);
-      }
+      _resizeConicWeights(countWeights() + numVbs);
     }
     int verbCount = countVerbs();
     _resizeVerbs(verbCount + numVbs);
@@ -616,7 +636,7 @@ class PathRef {
   /// Returns pointers to the uninitialized points and conic weights data.
   void growForVerbsInPath(PathRef path) {
     debugValidate();
-    _preEdit();
+    startEdit();
     fSegmentMask |= path.fSegmentMask;
     fBoundsIsDirty = true;  // this also invalidates fIsFinite
 
@@ -640,8 +660,11 @@ class PathRef {
 
     final int numConics = path.countWeights();
     if (numConics != 0) {
-      _conicWeights ??= [];
-      _conicWeights.addAll(path._conicWeights);
+      int curLength = countWeights();
+      _resizeConicWeights(curLength + numConics);
+      for (int i = 0; i < numConics; i++) {
+        _conicWeights[curLength + i] = path._conicWeights[i];
+      }
     }
 
     debugValidate();
@@ -651,17 +674,12 @@ class PathRef {
   ///
   /// SurfacePath.addOval, addRRect will set these flags after the verbs and
   /// points are added.
-  void _preEdit() {
+  void startEdit() {
     fIsOval = false;
     fIsRRect = false;
     fIsRect = false;
+    cachedBounds = null;
   }
-
-  /// Private, non-const-ptr version of the public function verbsMemBegin().
-  // uint8_t* verbsBeginWritable() { return fVerbs.begin(); }
-
-  /// Called the first time someone calls CreateEmpty to actually create the singleton.
-  // friend SkPathRef* sk_create_empty_pathref();
 
   void setIsOval(bool isOval, bool isCCW, int start) {
     fIsOval = isOval;
@@ -759,11 +777,11 @@ class PathRef {
   }
 }
 
-// Return true if all components of offset are finite.
-bool _isPointFinite(ui.Offset offset) {
+// Return true if all components are finite.
+bool _isPointFinite(double x, double y) {
   double accum = 0;
-  accum *= offset.dx;
-  accum *= offset.dy;
+  accum *= x;
+  accum *= y;
   return !accum.isNaN;
 }
 
@@ -790,7 +808,6 @@ class PathRefIterator {
       return SPath.kDoneVerb;
     }
     int verb = pathRef._fVerbs[_verbIndex++];
-    final Float32List points = pathRef.points;
     switch(verb) {
       case SPath.kMoveVerb:
         iterIndex = _pointIndex;

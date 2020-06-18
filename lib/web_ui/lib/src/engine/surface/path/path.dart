@@ -37,9 +37,6 @@ class SurfacePath implements ui.Path {
   int _convexityType;
   int _firstDirection;
 
-  /// Recorder used for hit testing paths.
-//  static ui.RawRecordingCanvas _rawRecorder;
-
   SurfacePath() : pathRef = PathRef() {
     _resetFields();
   }
@@ -207,7 +204,9 @@ class SurfacePath implements ui.Path {
   /// point.
   @override
   void lineTo(double x, double y) {
-    _injectMoveToIfNeeded();
+    if (fLastMoveToIndex < 0) {
+      _injectMoveToIfNeeded();
+    }
     int pointIndex = pathRef.growForVerb(SPathVerb.kLine, 0);
     pathRef.setPoint(pointIndex, x, y);
   }
@@ -1002,16 +1001,53 @@ class SurfacePath implements ui.Path {
       scale = _computeMinScale(tlRadiusY, trRadiusY, height, scale);
       scale = _computeMinScale(blRadiusY, brRadiusY, height, scale);
 
-      moveTo(left, bottom - scale * blRadiusY);
-      lineTo(left, top + scale * tlRadiusY);
-      conicTo(left, top, left + scale * tlRadiusX, top, weight);
-      lineTo(right - scale * trRadiusX, top);
-      conicTo(right, top, right, top + scale * trRadiusY, weight);
-      lineTo(right, bottom - scale * brRadiusY);
-      conicTo(right, bottom, right - scale * brRadiusX, bottom, weight);
-      lineTo(left + scale * blRadiusX, bottom);
-      conicTo(left, bottom, left, bottom - scale * blRadiusY, weight);
-
+      // Inlined version of:
+         moveTo(left, bottom - scale * blRadiusY);
+         lineTo(left, top + scale * tlRadiusY);
+         conicTo(left, top, left + scale * tlRadiusX, top, weight);
+         lineTo(right - scale * trRadiusX, top);
+         conicTo(right, top, right, top + scale * trRadiusY, weight);
+         lineTo(right, bottom - scale * brRadiusY);
+         conicTo(right, bottom, right - scale * brRadiusX, bottom, weight);
+         lineTo(left + scale * blRadiusX, bottom);
+         conicTo(left, bottom, left, bottom - scale * blRadiusY, weight);
+//      int pointIndex = pathRef.countPoints() * 2;
+//      Float32List points = pathRef.points;
+//      pathRef.growForVerb(SPath.kMoveVerb, 0);
+//      points[pointIndex++] = left;
+//      points[pointIndex++] = bottom - scale * blRadiusY;
+//      pathRef.growForVerb(SPath.kLineVerb, 0);
+//      points[pointIndex++] = left;
+//      points[pointIndex++] = top + scale * tlRadiusY;
+//      pathRef.growForVerb(SPath.kConicVerb, weight);
+//      points[pointIndex++] = left;
+//      points[pointIndex++] = top;
+//      points[pointIndex++] = left + scale * tlRadiusX;
+//      points[pointIndex++] = top;
+//      pathRef.growForVerb(SPath.kLineVerb, 0);
+//      points[pointIndex++] = right - scale * trRadiusX;
+//      points[pointIndex++] = top;
+//      pathRef.growForVerb(SPath.kConicVerb, weight);
+//      points[pointIndex++] = right;
+//      points[pointIndex++] = top;
+//      points[pointIndex++] = right;
+//      points[pointIndex++] = top + scale * trRadiusY;
+//      pathRef.growForVerb(SPath.kLineVerb, 0);
+//      points[pointIndex++] = right;
+//      points[pointIndex++] = bottom - scale * brRadiusY;
+//      pathRef.growForVerb(SPath.kConicVerb, weight);
+//      points[pointIndex++] = right;
+//      points[pointIndex++] = bottom;
+//      points[pointIndex++] = right - scale * brRadiusX;
+//      points[pointIndex++] = bottom;
+//      pathRef.growForVerb(SPath.kLineVerb, 0);
+//      points[pointIndex++] = left + scale * blRadiusX;
+//      points[pointIndex++] = bottom;
+//      pathRef.growForVerb(SPath.kConicVerb, weight);
+//      points[pointIndex++] = left;
+//      points[pointIndex++] = bottom;
+//      points[pointIndex++] = left;
+//      points[pointIndex++] = bottom - scale * blRadiusY;
       close();
       // SkAutoDisableDirectionCheck.
       _firstDirection = isRRect ? direction : SPathDirection.kUnknown;
@@ -1249,7 +1285,7 @@ class SurfacePath implements ui.Path {
   }
 
   void _transform(Float64List m) {
-    pathRef._preEdit();
+    pathRef.startEdit();
     final int pointCount = pathRef.countPoints();
     final Float32List points = pathRef.points;
     for (int i = 0, len = pointCount * 2; i < len; i += 2) {
@@ -1280,19 +1316,21 @@ class SurfacePath implements ui.Path {
   // see https://skia.org/user/api/SkPath_Reference#SkPath_getBounds
   @override
   ui.Rect getBounds() {
+    if (pathRef.isRRect != -1 || pathRef.isOval != -1) {
+      return pathRef.getBounds();
+    }
+    if (!pathRef.fBoundsIsDirty && pathRef.cachedBounds != null) {
+      return pathRef.cachedBounds;
+    }
     bool ltrbInitialized = false;
     double left = 0.0, top = 0.0, right = 0.0, bottom = 0.0;
     double minX = 0.0, maxX = 0.0, minY = 0.0, maxY = 0.0;
-
     final PathRefIterator iter = PathRefIterator(pathRef);
     final Float32List points = pathRef.points;
     int verb;
     _CubicBounds cubicBounds;
     _QuadBounds quadBounds;
     _ConicBounds conicBounds;
-    if (pathRef.isRRect != -1 || pathRef.isOval != -1) {
-      return pathRef.getBounds();
-    }
     while ((verb = iter.nextIndex()) != SPath.kDoneVerb) {
       final int pIndex = iter.iterIndex;
       switch (verb) {
@@ -1342,9 +1380,12 @@ class SurfacePath implements ui.Path {
         bottom = math.max(bottom, maxY);
       }
     }
-    return ltrbInitialized
+    ui.Rect newBounds = ltrbInitialized
         ? ui.Rect.fromLTRB(left, top, right, bottom)
         : ui.Rect.zero;
+    pathRef.getBounds();
+    pathRef.cachedBounds = newBounds;
+    return newBounds;
   }
 
   /// Creates a [PathMetrics] object for this path.
@@ -1373,16 +1414,8 @@ class SurfacePath implements ui.Path {
   ///
   /// Used for web optimization of physical shape represented as
   /// a persistent div.
-  ui.Rect get webOnlyPathAsCircle => null; //{
-//    if (pathRef.isOval == -1) {
-//      return null;
-//    }
-//    final int pointCount = pathRef.countPoints();
-//    if (pointCount == 0) {
-//      return null;
-//    }
-//    return pathRef.getBounds();
-//  }
+  ui.Rect get webOnlyPathAsCircle =>
+    pathRef.isOval == -1 ? null : pathRef.getBounds();
 
   /// Serializes this path to a value that's sent to a CSS custom painter for
   /// painting.

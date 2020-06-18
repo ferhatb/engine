@@ -41,7 +41,7 @@ class _SurfacePathMeasure {
   _SurfacePathMeasure(this._path, this.forceClosed, {this.resScale = 1.0}) {
     // nextContour will increment this to the zero based index.
     _currentContourIndex = -1;
-    _pathIterator = PathIterator(_path.pathRef, true);
+    _pathIterator = PathIterator(_path.pathRef, forceClosed);
   }
 
   final double resScale;
@@ -127,12 +127,10 @@ class _SurfacePathMeasure {
 /// and extract a sub path.
 class _PathContourMeasure {
   _PathContourMeasure(this.pathRef, PathIterator iter, this.forceClosed) {
-    _verbStartIndex = iter._verbIndex;
     _verbEndIndex = _buildSegments(iter);
   }
 
   final PathRef pathRef;
-  int _verbStartIndex;
   int _verbEndIndex;
   final List<_PathSegment> _segments = [];
   // Allocate buffer large enough for returning cubic curve chop result.
@@ -298,14 +296,18 @@ class _PathContourMeasure {
     };
     int verb = 0;
     final Float32List points = Float32List(10);
-    while ((verb = iter.next(points)) != SPath.kDoneVerb) {
+    do {
+      if (iter.peek() == SPath.kMoveVerb && haveSeenMoveTo) {
+        break;
+      }
+      verb = iter.next(points);
       switch (verb) {
         case SPath.kMoveVerb:
           haveSeenMoveTo = true;
           break;
         case SPath.kLineVerb:
           assert(haveSeenMoveTo);
-          lineToHandler(points[2], points[3]);
+          lineToHandler(points[0], points[1], points[2], points[3]);
           break;
         case SPath.kCubicVerb:
           assert(haveSeenMoveTo);
@@ -327,17 +329,29 @@ class _PathContourMeasure {
         case SPath.kConicVerb:
           assert(haveSeenMoveTo);
           final double w = iter.conicWeight;
-          // Compute quad curve distance.
-          distance = _computeQuadSegments(
-              points[0],
-              points[1],
-              points[2] * w,
-              points[3] * w,
-              points[4],
-              points[5],
-              distance,
-              0,
-              _kMaxTValue);
+          Conic conic = Conic(points[0], points[1], points[2], points[3], points[4], points[5], w);
+          List<ui.Offset> conicPoints = conic.toQuads();
+          final int len = conicPoints.length;
+          double startX = conicPoints[0].dx;
+          double startY = conicPoints[0].dy;
+          for (int i = 1; i < len; i += 2) {
+            final double p1x = conicPoints[i].dx;
+            final double p1y = conicPoints[i].dy;
+            final double p2x = conicPoints[i + 1].dx;
+            final double p2y = conicPoints[i + 1].dy;
+            distance = _computeQuadSegments(
+                startX,
+                startY,
+                p1x,
+                p1y,
+                p2x,
+                p2y,
+                distance,
+                0,
+                _kMaxTValue);
+            startX = p2x;
+            startY = p2y;
+          }
           break;
         case SPath.kQuadVerb:
           assert(haveSeenMoveTo);
@@ -357,9 +371,9 @@ class _PathContourMeasure {
           _contourLength = distance;
           return iter._verbIndex;
         default:
-          throw UnimplementedError('Unknown path verb $verb');
+          break;
       }
-    }
+    } while (verb != SPath.kDoneVerb);
     _contourLength = distance;
     return iter._verbIndex;
   }
@@ -483,76 +497,6 @@ class _PathContourMeasure {
     }
     return distance;
   }
-
-  // Create segments by converting arc to cubics.
-  // See http://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter.
-  static void _computeEllipseSegments(
-      double startX,
-      double startY,
-      double distance,
-      double cx,
-      double cy,
-      double startAngle,
-      double endAngle,
-      double rotation,
-      double radiusX,
-      double radiusY,
-      bool anticlockwise,
-      _EllipseSegmentResult result,
-      List<_PathSegment> segments) {
-    final double endX = cx + (radiusX * math.cos(endAngle));
-    final double endY = cy + (radiusY * math.sin(endAngle));
-    result.endPointX = endX;
-    result.endPointY = endY;
-    // Check for http://www.w3.org/TR/SVG/implnote.html#ArcOutOfRangeParameters
-    // Treat as line segment from start to end if arc has zero radii.
-    // If start and end point are the same treat as zero length path.
-    if ((radiusX == 0 || radiusY == 0) || (startX == endX && startY == endY)) {
-      result.distance = distance;
-      return;
-    }
-    final double rxAbs = radiusX.abs();
-    final double ryAbs = radiusY.abs();
-
-    final double theta1 = startAngle;
-    final double theta2 = endAngle;
-    final double thetaArc = theta2 - theta1;
-
-    // Add 0.01f to make sure we have enough segments when thetaArc is close
-    // to pi/2.
-    final int numSegments = (thetaArc / ((math.pi / 2.0) + 0.01)).abs().ceil();
-    double x0 = startX;
-    double y0 = startY;
-    for (int segmentIndex = 0; segmentIndex < numSegments; segmentIndex++) {
-      final double startTheta =
-          theta1 + (segmentIndex * thetaArc / numSegments);
-      final double endTheta =
-          theta1 + ((segmentIndex + 1) * thetaArc / numSegments);
-      final double t = (4.0 / 3.0) * math.tan((endTheta - startTheta) / 4);
-      if (!t.isFinite) {
-        result.distance = distance;
-        return;
-      }
-      final double sinStartTheta = math.sin(startTheta);
-      final double cosStartTheta = math.cos(startTheta);
-      final double sinEndTheta = math.sin(endTheta);
-      final double cosEndTheta = math.cos(endTheta);
-
-      // Compute cubic segment start, control point and end (target).
-      final double p1x = rxAbs * (cosStartTheta - t * sinStartTheta) + cx;
-      final double p1y = ryAbs * (sinStartTheta + t * cosStartTheta) + cy;
-      final double targetPointX = rxAbs * cosEndTheta + cx;
-      final double targetPointY = ryAbs * sinEndTheta + cy;
-      final double p2x = targetPointX + rxAbs * (t * sinEndTheta);
-      final double p2y = targetPointY + ryAbs * (-t * cosEndTheta);
-
-      distance = _computeCubicSegments(x0, y0, p1x, p1y, p2x, p2y, targetPointX,
-          targetPointY, distance, 0, _kMaxTValue, segments);
-      x0 = targetPointX;
-      y0 = targetPointY;
-    }
-    result.distance = distance;
-  }
 }
 
 /// Tracks iteration from one segment of a path to the next for measurement.
@@ -660,13 +604,6 @@ class SurfacePathMetric implements ui.PathMetric {
 
   @override
   String toString() => 'PathMetric';
-}
-
-class _EllipseSegmentResult {
-  double endPointX;
-  double endPointY;
-  double distance;
-  _EllipseSegmentResult();
 }
 
 // Given a vector dx, dy representing slope, normalize and return as [ui.Offset].
