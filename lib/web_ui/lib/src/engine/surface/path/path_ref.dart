@@ -394,9 +394,10 @@ class PathRef {
   void _append(PathRef source) {
     final int pointCount = source.countPoints();
     final int curLength = _fPointsLength;
-    _resizePoints(curLength + pointCount);
+    final int newPointCount = curLength + pointCount;
+    _resizePoints(newPointCount);
     final Float32List sourcePoints = source.points;
-    for (int source = pointCount * 2 - 1, dst = curLength * 2 - 1; source >= 0; source--, dst--) {
+    for (int source = pointCount * 2 - 1, dst = newPointCount * 2 - 1; source >= 0; source--, dst--) {
       _fPoints[dst] = sourcePoints[source];
     }
     final int verbCount = countVerbs();
