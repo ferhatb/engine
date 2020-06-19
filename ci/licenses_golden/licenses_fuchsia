@@ -1,4 +1,4 @@
-Signature: d98f725cac8c0e4a76e885974b062bf2
+Signature: 8350b75d113a41c4617f4d112df3446e
 
 UNUSED LICENSES:
 
@@ -2588,7 +2588,6 @@ FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/logger.dart
 FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/module.dart
 FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/service_connection.dart
 FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/src/agent/agent.dart
-FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/src/agent/internal/_agent_context.dart
 FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/src/agent/internal/_agent_impl.dart
 FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/src/internal/_component_context.dart
 FILE: ../../../fuchsia/sdk/linux/dart/fuchsia_modular/lib/src/lifecycle/internal/_lifecycle_impl.dart
@@ -2715,7 +2714,6 @@ FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/include/lib/fidl/cpp/message_buff
 FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/include/lib/fidl/cpp/message_builder.h
 FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/include/lib/fidl/cpp/message_part.h
 FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/include/lib/fidl/walker.h
-FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/linearizing.cc
 FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/message.cc
 FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/message_buffer.cc
 FILE: ../../../fuchsia/sdk/linux/pkg/fidl_base/message_builder.cc
