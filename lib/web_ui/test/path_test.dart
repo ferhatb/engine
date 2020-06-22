@@ -378,22 +378,21 @@ void main() {
     expect(path2.contains(Offset(50, 100)), isFalse);
   });
 
-<<<<<<< HEAD
   test('Should set segment masks', () {
     SurfacePath path = new SurfacePath();
     path.pathRef.computeSegmentMask();
-    expect(path.pathRef.segmentMasks , 0);
+    expect(path.pathRef.segmentMasks, 0);
     path.moveTo(20, 40);
     path.pathRef.computeSegmentMask();
-    expect(path.pathRef.segmentMasks , 0);
+    expect(path.pathRef.segmentMasks, 0);
     path.lineTo(200, 40);
     path.pathRef.computeSegmentMask();
     expect(path.pathRef.segmentMasks, SPathSegmentMask.kLine_SkPathSegmentMask);
-=======
+  });
+
   test('Should convert conic to quad when approximation error is small', () {
     Conic conic = Conic(120.0, 20.0, 160.99470420829266, 20.0,
         190.19301120261332, 34.38770865870253, 0.9252691032413082);
     expect(conic.toQuads().length, 3);
->>>>>>> upstream/master
   });
 }
