@@ -307,6 +307,9 @@ class PathRef {
     _fPoints = Float32List(_fPointsCapacity * 2);
     final Float32List sourcePoints = source.points;
     for (int i = 0, len = _fPointsLength * 2; i < len; i += 2) {
+      if (i == 10 && source.fBoundsIsDirty == false && _nearlyEqual(fBounds.right, 330.6666717529297)) {
+        print('Checkpoint');
+      }
       points[i] = sourcePoints[i] + offsetX;
       points[i + 1] = sourcePoints[i + 1] + offsetY;
     }
@@ -314,7 +317,7 @@ class PathRef {
     fBoundsIsDirty = source.fBoundsIsDirty;
     if (!fBoundsIsDirty) {
       fBounds = source.fBounds.translate(offsetX, offsetY);
-      cachedBounds = source.cachedBounds;
+      cachedBounds = source.cachedBounds?.translate(offsetX, offsetY);
       fIsFinite = source.fIsFinite;
     }
     fSegmentMask = source.fSegmentMask;
@@ -323,6 +326,25 @@ class PathRef {
     fIsRect = source.fIsRect;
     fRRectOrOvalIsCCW = source.fRRectOrOvalIsCCW;
     fRRectOrOvalStartIdx = source.fRRectOrOvalStartIdx;
+
+    if (fBoundsIsDirty == false) {
+      final double boundsLeft = fBounds.left;
+      final double boundsTop = fBounds.top;
+      final double boundsRight = fBounds.right;
+      final double boundsBottom = fBounds.bottom;
+      for (int i = 0, len = _fPointsLength * 2; i < len; i += 2) {
+        final double pointX = _fPoints[i];
+        final double pointY = _fPoints[i + 1];
+        final bool pointIsFinite = pointX.isFinite && pointY.isFinite;
+        double tolerance = 0.00001;
+        if (pointIsFinite &&
+            (pointX + tolerance < boundsLeft || pointY + tolerance < boundsTop ||
+                pointX - tolerance > boundsRight || pointY - tolerance > boundsBottom)) {
+          throw Exception(
+              'did offset by ($offsetX $offsetY) idx=$i , x=$pointX y=$pointY $boundsLeft,$boundsTop,$boundsRight,$boundsBottom');
+        }
+      }
+    }
     debugValidate();
   }
 
@@ -753,10 +775,11 @@ class PathRef {
       for (int i = 0, len = _fPointsLength * 2; i < len; i += 2) {
         final double pointX = _fPoints[i];
         final double pointY = _fPoints[i + 1];
+        double tolerance = 0.00001;
         final bool pointIsFinite = pointX.isFinite && pointY.isFinite;
         if (pointIsFinite &&
-            (pointX < boundsLeft || pointY < boundsTop ||
-                pointX > boundsRight || pointY > boundsBottom)) {
+            (pointX + tolerance < boundsLeft || pointY + tolerance < boundsTop ||
+                pointX - tolerance > boundsRight || pointY - tolerance > boundsBottom)) {
           return false;
         }
         if (!pointIsFinite) {
