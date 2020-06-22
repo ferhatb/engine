@@ -207,11 +207,9 @@ class PathRef {
             dy = vector1_0y.abs();
           }
           if (assertionsEnabled) {
-            final int checkCornerIndex = (controlPx == bounds.left) ?
-            ((controlPy == bounds.top) ? _Corner.kUpperLeft : _Corner
-                .kLowerLeft)
-                : (controlPy == bounds.top ? _Corner.kUpperRight : _Corner
-                .kLowerRight);
+            final int checkCornerIndex = _nearlyEqual(controlPx, bounds.left) ?
+            (_nearlyEqual(controlPy, bounds.top) ? _Corner.kUpperLeft : _Corner.kLowerLeft)
+                : (_nearlyEqual(controlPy, bounds.top) ? _Corner.kUpperRight : _Corner.kLowerRight);
             assert(checkCornerIndex == cornerIndex);
             assert(radii[cornerIndex] == null);
           }
@@ -307,7 +305,7 @@ class PathRef {
     _fPoints = Float32List(_fPointsCapacity * 2);
     final Float32List sourcePoints = source.points;
     for (int i = 0, len = _fPointsLength * 2; i < len; i += 2) {
-      if (i == 10 && source.fBoundsIsDirty == false && _nearlyEqual(fBounds.right, 330.6666717529297)) {
+      if (i == 10 && source.fBoundsIsDirty == false && fBounds != null && _nearlyEqual(fBounds.right, 330.6666717529297)) {
         print('Checkpoint');
       }
       points[i] = sourcePoints[i] + offsetX;
@@ -336,7 +334,7 @@ class PathRef {
         final double pointX = _fPoints[i];
         final double pointY = _fPoints[i + 1];
         final bool pointIsFinite = pointX.isFinite && pointY.isFinite;
-        double tolerance = 0.00001;
+        double tolerance = 0.0001;
         if (pointIsFinite &&
             (pointX + tolerance < boundsLeft || pointY + tolerance < boundsTop ||
                 pointX - tolerance > boundsRight || pointY - tolerance > boundsBottom)) {
@@ -775,7 +773,7 @@ class PathRef {
       for (int i = 0, len = _fPointsLength * 2; i < len; i += 2) {
         final double pointX = _fPoints[i];
         final double pointY = _fPoints[i + 1];
-        double tolerance = 0.00001;
+        double tolerance = 0.0001;
         final bool pointIsFinite = pointX.isFinite && pointY.isFinite;
         if (pointIsFinite &&
             (pointX + tolerance < boundsLeft || pointY + tolerance < boundsTop ||

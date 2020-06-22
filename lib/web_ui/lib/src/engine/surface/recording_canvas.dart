@@ -1836,38 +1836,6 @@ class RectCommand extends PathCommand {
   }
 }
 
-//class RRectCommand extends PathCommand {
-//  final ui.RRect rrect;
-//
-//  const RRectCommand(this.rrect) : super(PathCommandTypes.rRect);
-//
-//  @override
-//  RRectCommand shifted(ui.Offset offset) {
-//    return RRectCommand(rrect.shift(offset));
-//  }
-//
-//  @override
-//  List<dynamic> serializeToCssPaint() {
-//    return <dynamic>[7, _serializeRRectToCssPaint(rrect)];
-//  }
-//
-//  @override
-//  void transform(Float32List matrix4, SurfacePath targetPath) {
-//    final ui.Path roundRectPath = ui.Path();
-//    _RRectToPathRenderer(roundRectPath).render(rrect);
-//    targetPath._addPath(roundRectPath, 0, 0, matrix4, SPathAddPathMode.kAppend);
-//  }
-//
-//  @override
-//  String toString() {
-//    if (assertionsEnabled) {
-//      return '$rrect';
-//    } else {
-//      return super.toString();
-//    }
-//  }
-//}
-
 class CloseCommand extends PathCommand {
   const CloseCommand() : super(PathCommandTypes.close);
 
