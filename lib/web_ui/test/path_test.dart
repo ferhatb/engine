@@ -438,7 +438,7 @@ void main() {
 
     test('Should be able to construct from empty path', () {
       SurfacePath path = SurfacePath();
-      SurfacePath path2 = SurfacePath.from(path);
+      SurfacePath? path2 = SurfacePath.from(path);
       assert(path2 != null, true);
     });
   });
@@ -483,14 +483,12 @@ void main() {
     });
 
     test('Should iterate by index through empty path', () {
-      final Float32List points = Float32List(20);
       PathRef pathRef = PathRef();
       PathRefIterator iter = PathRefIterator(pathRef);
       expect(iter.nextIndex(), SPath.kDoneVerb);
     });
 
     test('Should iterate through contours', () {
-      final Float32List points = Float32List(20);
       PathRef pathRef = PathRef();
       pathRef.growForVerb(SPath.kMoveVerb, 0);
       pathRef.growForVerb(SPath.kLineVerb, 0);
