@@ -24,13 +24,13 @@ void pathToSvg(SurfacePath path, StringBuffer sb,
             '${outPts[4] + offsetX} ${outPts[5] + offsetY} ${outPts[6] + offsetX} ${outPts[7] + offsetY}');
         break;
       case SPath.kQuadVerb:
-        sb.write(
-            'Q ${outPts[2] + offsetX} ${outPts[3] + offsetY} '
+        sb.write('Q ${outPts[2] + offsetX} ${outPts[3] + offsetY} '
             '${outPts[4] + offsetX} ${outPts[5] + offsetY}');
         break;
       case SPath.kConicVerb:
         final double w = iter.conicWeight;
-        Conic conic = Conic(outPts[0], outPts[1], outPts[2], outPts[3], outPts[4], outPts[5], w);
+        Conic conic = Conic(outPts[0], outPts[1], outPts[2], outPts[3],
+            outPts[4], outPts[5], w);
         List<ui.Offset> points = conic.toQuads();
         final int len = points.length;
         for (int i = 1; i < len; i += 2) {
@@ -38,9 +38,8 @@ void pathToSvg(SurfacePath path, StringBuffer sb,
           final double p1y = points[i].dy;
           final double p2x = points[i + 1].dx;
           final double p2y = points[i + 1].dy;
-          sb.write(
-              'Q ${p1x + offsetX} ${p1y + offsetY} '
-                  '${p2x + offsetX} ${p2y + offsetY}');
+          sb.write('Q ${p1x + offsetX} ${p1y + offsetY} '
+              '${p2x + offsetX} ${p2y + offsetY}');
         }
         break;
       case SPath.kCloseVerb:

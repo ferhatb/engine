@@ -6,17 +6,17 @@ part of engine;
 
 /// Mask used to keep track of types of verbs used in a path segment.
 class SPathSegmentMask {
-  static const int kLine_SkPathSegmentMask   = 1 << 0;
-  static const int kQuad_SkPathSegmentMask   = 1 << 1;
-  static const int kConic_SkPathSegmentMask  = 1 << 2;
-  static const int kCubic_SkPathSegmentMask  = 1 << 3;
+  static const int kLine_SkPathSegmentMask = 1 << 0;
+  static const int kQuad_SkPathSegmentMask = 1 << 1;
+  static const int kConic_SkPathSegmentMask = 1 << 2;
+  static const int kCubic_SkPathSegmentMask = 1 << 3;
 }
 
 /// Types of path operations.
 class SPathVerb {
-  static const int kMove = 1;  // 1 point
-  static const int kLine = 2;  // 2 points
-  static const int kQuad = 3;  // 3 points
+  static const int kMove = 1; // 1 point
+  static const int kLine = 2; // 2 points
+  static const int kQuad = 3; // 3 points
   static const int kConic = 4; // 3 points + 1 weight
   static const int kCubic = 5; // 4 points
   static const int kClose = 6; // 0 points
@@ -31,12 +31,15 @@ class SPath {
   static const int kCloseVerb = SPathVerb.kClose;
   static const int kDoneVerb = SPathVerb.kClose + 1;
 
-  static const int kLineSegmentMask   = SPathSegmentMask.kLine_SkPathSegmentMask;
-  static const int kQuadSegmentMask   = SPathSegmentMask.kQuad_SkPathSegmentMask;
-  static const int kConicSegmentMask  = SPathSegmentMask.kConic_SkPathSegmentMask;
-  static const int kCubicSegmentMask  = SPathSegmentMask.kCubic_SkPathSegmentMask;
+  static const int kLineSegmentMask = SPathSegmentMask.kLine_SkPathSegmentMask;
+  static const int kQuadSegmentMask = SPathSegmentMask.kQuad_SkPathSegmentMask;
+  static const int kConicSegmentMask =
+      SPathSegmentMask.kConic_SkPathSegmentMask;
+  static const int kCubicSegmentMask =
+      SPathSegmentMask.kCubic_SkPathSegmentMask;
 
   static const double scalarNearlyZero = 1.0 / (1 << 12);
+
   /// Square root of 2 divided by 2. Useful for sin45 = cos45 = 1/sqrt(2).
   static const double scalarRoot2Over2 = 0.707106781;
 
@@ -64,8 +67,10 @@ class SPathAddPathMode {
 class SPathDirection {
   /// Uninitialized value for empty paths.
   static const int kUnknown = -1;
+
   /// clockwise direction for adding closed contours.
   static const int kCW = 0;
+
   /// counter-clockwise direction for adding closed contours.
   static const int kCCW = 1;
 }
@@ -80,8 +85,10 @@ class SPathSegmentState {
   /// The current contour is empty. Starting processing or have just closed
   /// a contour.
   static const int kEmptyContour = 0;
+
   /// Have seen a move, but nothing else.
   static const int kAfterMove = 1;
+
   /// Have seen a primitive but not yet closed the path. Also the initial state.
   static const int kAfterPrimitive = 2;
 }
@@ -98,8 +105,9 @@ class _QuadRoots {
   _QuadRoots();
 
   /// Returns roots as list.
-  List<double> get roots =>
-      (root0 == null) ? [] : (root1 == null ? <double>[root0!] : <double>[root0!, root1!]);
+  List<double> get roots => (root0 == null)
+      ? []
+      : (root1 == null ? <double>[root0!] : <double>[root0!, root1!]);
 
   int findRoots(double a, double b, double c) {
     int rootCount = 0;
@@ -117,7 +125,7 @@ class _QuadRoots {
       return 0;
     }
 
-    double q = (b < 0) ? - (b - dr) / 2 : - (b + dr) / 2;
+    double q = (b < 0) ? -(b - dr) / 2 : -(b + dr) / 2;
     double? res = _validUnitDivide(q, a);
     if (res != null) {
       root0 = res;
@@ -158,7 +166,8 @@ double? _validUnitDivide(double numer, double denom) {
   if (r.isNaN) {
     return null;
   }
-  if (r == 0) { // catch underflow if numer <<<< denom
+  if (r == 0) {
+    // catch underflow if numer <<<< denom
     return null;
   }
   return r;
@@ -179,26 +188,26 @@ bool _isRRectOval(ui.RRect rrect) {
   if ((rrect.tlRadiusY + rrect.trRadiusY) != rrect.height) {
     return false;
   }
-  if (rrect.tlRadiusX != rrect.blRadiusX || rrect.trRadiusX != rrect.brRadiusX
-      || rrect.tlRadiusY != rrect.blRadiusY || rrect.trRadiusY != rrect.brRadiusY) {
+  if (rrect.tlRadiusX != rrect.blRadiusX ||
+      rrect.trRadiusX != rrect.brRadiusX ||
+      rrect.tlRadiusY != rrect.blRadiusY ||
+      rrect.trRadiusY != rrect.brRadiusY) {
     return false;
   }
   return true;
 }
 
 /// Evaluates degree 2 polynomial (quadratic).
-double polyEval(double A, double B, double C, double t) =>
-    (A * t + B) * t + C;
+double polyEval(double A, double B, double C, double t) => (A * t + B) * t + C;
 
 /// Evaluates degree 3 polynomial (cubic).
 double polyEval4(double A, double B, double C, double D, double t) =>
     ((A * t + B) * t + C) * t + D;
 
-
 // Interpolate between two doubles (Not using lerpDouble here since it null
 // checks and treats values as 0).
-double _interpolate(double startValue, double endValue, double t)
-    => (startValue * (1 - t)) + endValue * t;
+double _interpolate(double startValue, double endValue, double t) =>
+    (startValue * (1 - t)) + endValue * t;
 
 double _dotProduct(double x0, double y0, double x1, double y1) {
   return x0 * x1 + y0 * y1;
@@ -233,6 +242,7 @@ class Convexicator {
   bool _isFinite = true;
   int _firstDirection = SPathDirection.kUnknown;
   int _reversals = 0;
+
   /// SPathDirection of contour.
   int get firstDirection => _firstDirection;
 
@@ -259,7 +269,7 @@ class Convexicator {
       firstVectorEndPointX = x;
       firstVectorEndPointY = y;
     } else if (!_addVector(vecX, vecY)) {
-        return false;
+      return false;
     }
     priorX = lastX;
     priorY = lastY;
@@ -290,10 +300,11 @@ class Convexicator {
     // Detect straight and backwards direction change.
     // Instead of comparing absolute crossproduct size, compare
     // largest component double+crossproduct.
-    final double smallest = math.min(curVecX, math.min(curVecY,
-        math.min(lastX, lastY)));
-    final double largest = math.max(math.max(curVecX, math.max(curVecY,
-      math.max(lastX, lastY))), -smallest);
+    final double smallest =
+        math.min(curVecX, math.min(curVecY, math.min(lastX, lastY)));
+    final double largest = math.max(
+        math.max(curVecX, math.max(curVecY, math.max(lastX, lastY))),
+        -smallest);
     if (_nearlyEqual(largest, largest + cross)) {
       final double nearlyZeroSquared =
           SPath.scalarNearlyZero * SPath.scalarNearlyZero;
@@ -306,7 +317,8 @@ class Convexicator {
       // The vectors are parallel, sign of dot product gives us direction.
       // cosine is positive for straight -90 < Theta < 90
       return _dotProduct(lastX, lastY, curVecX, curVecY) < 0
-          ? DirChange.kBackwards : DirChange.kStraight;
+          ? DirChange.kBackwards
+          : DirChange.kStraight;
     }
     return cross > 0 ? DirChange.kRight : DirChange.kLeft;
   }
@@ -318,8 +330,8 @@ class Convexicator {
       if (_expectedDirection == DirChange.kInvalid) {
         // First valid direction. From this point on expect always left.
         _expectedDirection = dir;
-        _firstDirection = isDirectionRight ? SPathDirection.kCW :
-          SPathDirection.kCCW;
+        _firstDirection =
+            isDirectionRight ? SPathDirection.kCW : SPathDirection.kCCW;
       } else if (dir != _expectedDirection) {
         _firstDirection = SPathDirection.kUnknown;
         return false;
@@ -357,10 +369,12 @@ class Convexicator {
     int signChangeCountY = 0;
     int lastSx = kValueNeverReturnedBySign;
     int lastSy = kValueNeverReturnedBySign;
-    for (int outerLoop = 0; outerLoop < 2; ++outerLoop ) {
+    for (int outerLoop = 0; outerLoop < 2; ++outerLoop) {
       while (pointIndex != lastPointIndex) {
-        double vecX = pathRef._fPoints[pointIndex * 2] - pathRef._fPoints[currentPoint * 2];
-        double vecY = pathRef._fPoints[pointIndex * 2 + 1] - pathRef._fPoints[currentPoint * 2 + 1];
+        double vecX = pathRef._fPoints[pointIndex * 2] -
+            pathRef._fPoints[currentPoint * 2];
+        double vecY = pathRef._fPoints[pointIndex * 2 + 1] -
+            pathRef._fPoints[currentPoint * 2 + 1];
         if (!(vecX == 0 && vecY == 0)) {
           // Give up if vector construction failed.
           // give up if vector construction failed

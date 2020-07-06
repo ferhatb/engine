@@ -112,33 +112,33 @@ class PathWinding {
     if (!_isQuadMonotonic(_buffer)) {
       n = _chopQuadAtExtrema(_buffer);
     }
-    int winding = _computeMonoQuadWinding(_buffer[0], _buffer[1],
-        _buffer[2], _buffer[3], _buffer[4], _buffer[5]);
+    int winding = _computeMonoQuadWinding(
+        _buffer[0], _buffer[1], _buffer[2], _buffer[3], _buffer[4], _buffer[5]);
     if (n > 0) {
-      winding += _computeMonoQuadWinding(_buffer[4], _buffer[5],
-          _buffer[6], _buffer[7], _buffer[8], _buffer[9]);
+      winding += _computeMonoQuadWinding(_buffer[4], _buffer[5], _buffer[6],
+          _buffer[7], _buffer[8], _buffer[9]);
     }
     _w += winding;
   }
 
-  int _computeMonoQuadWinding(double x0, double y0, double x1, double y1,
-      double x2, double y2) {
+  int _computeMonoQuadWinding(
+      double x0, double y0, double x1, double y1, double x2, double y2) {
     int dir = 1;
     if (y0 > y2) {
-        final double temp = y0;
-        y0 = y2;
-        y2 = temp;
-        dir = -1;
+      final double temp = y0;
+      y0 = y2;
+      y2 = temp;
+      dir = -1;
     }
     if (y < y0 || y > y2) {
-        return 0;
+      return 0;
     }
     if (_checkOnCurve(x, y, x0, y0, x2, y2)) {
       _onCurveCount++;
       return 0;
     }
     if (y == y2) {
-        return 0;
+      return 0;
     }
 
     _QuadRoots quadRoots = _QuadRoots();
@@ -146,8 +146,8 @@ class PathWinding {
     assert(n <= 1);
     double xt;
     if (0 == n) {
-        // zero roots are returned only when y0 == y
-        xt = dir == 1 ? x0 : x2;
+      // zero roots are returned only when y0 == y
+      xt = dir == 1 ? x0 : x2;
     } else {
       final double t = quadRoots.root0!;
       final double C = x0;
@@ -156,7 +156,8 @@ class PathWinding {
       xt = polyEval(A, B, C, t);
     }
     if (_nearlyEqual(xt, x)) {
-      if (x != x2 || y != y2) {  // don't test end points; they're start points
+      if (x != x2 || y != y2) {
+        // don't test end points; they're start points
         _onCurveCount += 1;
         return 0;
       }
@@ -213,9 +214,8 @@ class PathWinding {
   }
 
   void _computeConicWinding(double weight) {
-
-    Conic conic = Conic(_buffer[0], _buffer[1], _buffer[2],
-        _buffer[3], _buffer[4], _buffer[5], weight);
+    Conic conic = Conic(_buffer[0], _buffer[1], _buffer[2], _buffer[3],
+        _buffer[4], _buffer[5], weight);
     // If the data points are very large, the conic may not be monotonic but may also
     // fail to chop. Then, the chopper does not split the original conic in two.
     bool isMono = _isQuadMonotonic(_buffer);
@@ -267,7 +267,9 @@ class PathWinding {
       xt = dir == 1 ? conic.p0x : conic.p2x;
     } else {
       final double root = quadRoots.root0!;
-      xt = _conicEvalNumerator(conic.p0x, conic.p1x, conic.p2x, conic.fW, root) / _conicEvalDenominator(conic.fW, root);
+      xt =
+          _conicEvalNumerator(conic.p0x, conic.p1x, conic.p2x, conic.fW, root) /
+              _conicEvalDenominator(conic.fW, root);
     }
     if (_nearlyEqual(xt, x)) {
       if (x != conic.p2x || y != conic.p2y) {
@@ -311,18 +313,18 @@ class PathWinding {
       return;
     }
     if (_checkOnCurve(x, y, px0, py0, px3, py3)) {
-        _onCurveCount += 1;
-        return;
+      _onCurveCount += 1;
+      return;
     }
     if (y == y3) {
-        return;
+      return;
     }
 
     // Quickly reject or accept
     final double min = math.min(px0, math.min(px1, math.min(px2, px3)));
     final double max = math.max(px0, math.max(px1, math.max(px2, px3)));
     if (x < min) {
-        return;
+      return;
     }
     if (x > max) {
       _w += dir;
@@ -331,14 +333,15 @@ class PathWinding {
     // Compute the actual x(t) value.
     double? t = _chopMonoAtY(_buffer, bufferStartPos, y);
     if (t == null) {
-        return;
+      return;
     }
     double xt = _evalCubicPts(px0, px1, px2, px3, t);
     if (_nearlyEqual(xt, x)) {
-        if (x != px3 || y != py3) {  // don't test end points; they're start points
-            _onCurveCount += 1;
-            return;
-        }
+      if (x != px3 || y != py3) {
+        // don't test end points; they're start points
+        _onCurveCount += 1;
+        return;
+      }
     }
     _w += xt < x ? dir : 0;
   }
@@ -346,7 +349,8 @@ class PathWinding {
 
 // Iterates through path including generating closing segments.
 class PathIterator {
-  PathIterator(this.pathRef, bool forceClose) : _forceClose = forceClose,
+  PathIterator(this.pathRef, bool forceClose)
+      : _forceClose = forceClose,
         _verbCount = pathRef.countVerbs() {
     _pointIndex = 0;
     if (!pathRef.isFinite) {
@@ -399,7 +403,9 @@ class PathIterator {
     if (_lastPointX != _moveToX || _lastPointY != _moveToY) {
       // Handle special case where comparison above will return true for
       // NaN != NaN although it should be false.
-      if (_lastPointX.isNaN || _lastPointY.isNaN || _moveToX.isNaN ||
+      if (_lastPointX.isNaN ||
+          _lastPointY.isNaN ||
+          _moveToX.isNaN ||
           _moveToY.isNaN) {
         return SPath.kCloseVerb;
       }
@@ -425,7 +431,8 @@ class PathIterator {
       _segmentState = SPathSegmentState.kAfterPrimitive;
       return ui.Offset(_moveToX, _moveToY);
     }
-    return ui.Offset(pathRef.points[_pointIndex - 2], pathRef.points[_pointIndex - 1]);
+    return ui.Offset(
+        pathRef.points[_pointIndex - 2], pathRef.points[_pointIndex - 1]);
   }
 
   int peek() => pathRef._fVerbs[_verbIndex];
@@ -435,16 +442,16 @@ class PathIterator {
     if (_verbIndex == pathRef.countVerbs()) {
       // Close the curve if requested and if there is some curve to close
       if (_needClose && _segmentState == SPathSegmentState.kAfterPrimitive) {
-          if (SPath.kLineVerb == _autoClose(outPts)) {
-            return SPath.kLineVerb;
-          }
-          _needClose = false;
-          return SPath.kCloseVerb;
+        if (SPath.kLineVerb == _autoClose(outPts)) {
+          return SPath.kLineVerb;
         }
-        return SPath.kDoneVerb;
+        _needClose = false;
+        return SPath.kCloseVerb;
+      }
+      return SPath.kDoneVerb;
     }
     int verb = pathRef._fVerbs[_verbIndex++];
-    switch(verb) {
+    switch (verb) {
       case SPath.kMoveVerb:
         if (_needClose) {
           // Move back one verb.

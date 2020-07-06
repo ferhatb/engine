@@ -89,8 +89,8 @@ class SurfacePath implements ui.Path {
   /// Returns true if [SurfacePath] contain equal verbs and equal weights.
   bool isInterpolatable(SurfacePath compare) =>
       compare.pathRef.countVerbs() == pathRef.countVerbs() &&
-          compare.pathRef.countPoints() == pathRef.countPoints() &&
-          compare.pathRef.countWeights() == pathRef.countWeights();
+      compare.pathRef.countPoints() == pathRef.countPoints() &&
+      compare.pathRef.countWeights() == pathRef.countWeights();
 
   bool interpolate(SurfacePath ending, double weight, SurfacePath out) {
     int pointCount = pathRef.countPoints();
@@ -135,8 +135,9 @@ class SurfacePath implements ui.Path {
   /// and last point.
   bool get isLastContourClosed {
     int verbCount = pathRef.countVerbs();
-    return verbCount == 0 ? false :
-    (pathRef.atVerb(verbCount - 1) == SPathVerb.kClose);
+    return verbCount == 0
+        ? false
+        : (pathRef.atVerb(verbCount - 1) == SPathVerb.kClose);
   }
 
   /// Returns true for finite SkPoint array values between negative SK_ScalarMax
@@ -155,7 +156,8 @@ class SurfacePath implements ui.Path {
   bool isLine(Float32List out) {
     assert(out.length >= 4);
     int verbCount = pathRef.countPoints();
-    if (2 == verbCount && pathRef.atVerb(0) == SPathVerb.kMove &&
+    if (2 == verbCount &&
+        pathRef.atVerb(0) == SPathVerb.kMove &&
         pathRef.atVerb(1) != SPathVerb.kLine) {
       out[0] = pathRef.points[0];
       out[1] = pathRef.points[1];
@@ -253,8 +255,8 @@ class SurfacePath implements ui.Path {
       int pointIndex = (pointCount - 1) * 2;
       final double lastPointX = pathRef.points[pointIndex++];
       final double lastPointY = pathRef.points[pointIndex];
-      quadraticBezierTo(x1 + lastPointX, y1 + lastPointY, x2 + lastPointX,
-          y2 + lastPointY);
+      quadraticBezierTo(
+          x1 + lastPointX, y1 + lastPointY, x2 + lastPointX, y2 + lastPointY);
     }
   }
 
@@ -327,9 +329,8 @@ class SurfacePath implements ui.Path {
       int pointIndex = (pointCount - 1) * 2;
       final double lastPointX = pathRef.points[pointIndex++];
       final double lastPointY = pathRef.points[pointIndex];
-      cubicTo(x1 + lastPointX, y1 + lastPointY,
-          x2 + lastPointX, y2 + lastPointY,
-          x3 + lastPointX, y3 + lastPointY);
+      cubicTo(x1 + lastPointX, y1 + lastPointY, x2 + lastPointX,
+          y2 + lastPointY, x3 + lastPointX, y3 + lastPointY);
     }
   }
 
@@ -376,8 +377,8 @@ class SurfacePath implements ui.Path {
     assert(direction != SPathDirection.kUnknown);
     bool isRect = _hasOnlyMoveTos();
     // SkAutoDisableDirectionCheck.
-    int finalDirection = _hasOnlyMoveTos() ? direction
-        : SPathDirection.kUnknown;
+    int finalDirection =
+        _hasOnlyMoveTos() ? direction : SPathDirection.kUnknown;
     int pointIndex0 = pathRef.growForVerb(SPathVerb.kMove, 0);
     int pointIndex1 = pathRef.growForVerb(SPathVerb.kLine, 0);
     int pointIndex2 = pathRef.growForVerb(SPathVerb.kLine, 0);
@@ -394,8 +395,7 @@ class SurfacePath implements ui.Path {
       pathRef.setPoint(pointIndex1, rect.right, rect.top);
       pathRef.setPoint(pointIndex0, rect.left, rect.top);
     }
-    pathRef.setIsRect(isRect, direction == SPathDirection.kCCW,
-        0);
+    pathRef.setIsRect(isRect, direction == SPathDirection.kCCW, 0);
     _resetAfterEdit();
     // SkAutoDisableDirectionCheck.
     _firstDirection = finalDirection;
@@ -497,8 +497,9 @@ class SurfacePath implements ui.Path {
     // Check for coincident vectors (angle is nearly 0 or 180).
     // The cross product for angles 0 and 180 will be zero, we use the
     // dot product sign to distinguish between the two.
-    if (absY <= SPath.scalarNearlyZero && x > 0 && (
-        (y >= 0 && dir == SPathDirection.kCW) ||
+    if (absY <= SPath.scalarNearlyZero &&
+        x > 0 &&
+        ((y >= 0 && dir == SPathDirection.kCW) ||
             (y <= 0 && dir == SPathDirection.kCCW))) {
       // No conics, just use single line to connect point.
       if (forceMoveTo) {
@@ -532,10 +533,12 @@ class SurfacePath implements ui.Path {
     ];
 
     int quadrant = 0;
-    if (0 == y) { // 180 degrees between vectors.
+    if (0 == y) {
+      // 180 degrees between vectors.
       quadrant = 2;
       assert((x + 1).abs() <= SPath.scalarNearlyZero);
-    } else if (0 == x) { // Dot product 0 means 90 degrees between vectors.
+    } else if (0 == x) {
+      // Dot product 0 means 90 degrees between vectors.
       assert((absY - 1) <= SPath.scalarNearlyZero);
       quadrant = y > 0 ? 1 : 3; // 90 or 270
     } else {
@@ -556,7 +559,8 @@ class SurfacePath implements ui.Path {
       final ui.Offset p0 = quadPoints[quadPointIndex];
       final ui.Offset p1 = quadPoints[quadPointIndex + 1];
       final ui.Offset p2 = quadPoints[quadPointIndex + 2];
-      conics.add(Conic(p0.dx, p0.dy, p1.dx, p1.dy, p2.dx, p2.dy, quadrantWeight));
+      conics
+          .add(Conic(p0.dx, p0.dy, p1.dx, p1.dy, p2.dx, p2.dy, quadrantWeight));
     }
 
     // Now compute any remaining ( < 90degree ) arc for last conic.
@@ -573,14 +577,15 @@ class SurfacePath implements ui.Path {
       double offCurveX = lastQuadrantPoint.dx + x;
       double offCurveY = lastQuadrantPoint.dy + y;
       final double cosThetaOver2 = math.sqrt((1.0 + dot) / 2.0);
-      double unscaledLength = math.sqrt((offCurveX * offCurveX) + (offCurveY * offCurveY));
+      double unscaledLength =
+          math.sqrt((offCurveX * offCurveX) + (offCurveY * offCurveY));
       assert(unscaledLength > SPath.scalarNearlyZero);
       offCurveX /= cosThetaOver2 * unscaledLength;
       offCurveY /= cosThetaOver2 * unscaledLength;
       if (!_nearlyEqual(offCurveX, lastQuadrantPoint.dx) ||
           !_nearlyEqual(offCurveY, lastQuadrantPoint.dy)) {
-        conics.add(Conic(lastQuadrantPoint.dx, lastQuadrantPoint.dy,
-            offCurveX, offCurveY, finalPx, finalPy, cosThetaOver2));
+        conics.add(Conic(lastQuadrantPoint.dx, lastQuadrantPoint.dy, offCurveX,
+            offCurveY, finalPx, finalPy, cosThetaOver2));
         ++conicCount;
       }
     }
@@ -588,7 +593,8 @@ class SurfacePath implements ui.Path {
     // we rotate to start vector, scale by rect.width/2 rect.height/2 and
     // then translate to center point.
     final double scaleX = rect.width / 2;
-    final double scaleY = dir == SPathDirection.kCCW ? -rect.height / 2 : rect.height / 2;
+    final double scaleY =
+        dir == SPathDirection.kCCW ? -rect.height / 2 : rect.height / 2;
     final double centerX = rect.center.dx;
     final double centerY = rect.center.dy;
     for (Conic conic in conics) {
@@ -649,12 +655,12 @@ class SurfacePath implements ui.Path {
   /// as reference for implementation.
   @override
   void arcToPoint(
-      ui.Offset arcEnd, {
-        ui.Radius radius = ui.Radius.zero,
-        double rotation = 0.0,
-        bool largeArc = false,
-        bool clockwise = true,
-      }) {
+    ui.Offset arcEnd, {
+    ui.Radius radius = ui.Radius.zero,
+    double rotation = 0.0,
+    bool largeArc = false,
+    bool clockwise = true,
+  }) {
     assert(offsetIsValid(arcEnd));
     assert(radiusIsValid(radius));
 
@@ -728,8 +734,10 @@ class SurfacePath implements ui.Path {
     }
 
     // Switch to unit vectors
-    double unitPts0x = (lastPointX * cosXAxisRotation + lastPointY * sinXAxisRotation) / rx;
-    double unitPts0y = (lastPointY * cosXAxisRotation - lastPointX * sinXAxisRotation ) / ry;
+    double unitPts0x =
+        (lastPointX * cosXAxisRotation + lastPointY * sinXAxisRotation) / rx;
+    double unitPts0y =
+        (lastPointY * cosXAxisRotation - lastPointX * sinXAxisRotation) / ry;
     double unitPts1x = (x * cosXAxisRotation + y * sinXAxisRotation) / rx;
     double unitPts1y = (y * cosXAxisRotation - x * sinXAxisRotation) / ry;
     double deltaX = unitPts1x - unitPts0x;
@@ -771,7 +779,8 @@ class SurfacePath implements ui.Path {
     }
 
     // The arc may be slightly bigger than 1/4 circle, so allow up to 1/3rd.
-    final int segments = (thetaArc / (2.0 * math.pi / 3.0)).abs().ceil().toInt();
+    final int segments =
+        (thetaArc / (2.0 * math.pi / 3.0)).abs().ceil().toInt();
     final double thetaWidth = thetaArc / segments;
     final double t = math.tan(thetaWidth / 2.0);
     if (!t.isFinite) {
@@ -785,9 +794,11 @@ class SurfacePath implements ui.Path {
     // to start outside their marks. A round rect may lose convexity as a
     // result. If the input values are on integers, place the conic on
     // integers as well.
-    bool expectIntegers = _nearlyEqual((math.pi/2 - thetaWidth.abs()), 0) &&
-        _isInteger(rx) && _isInteger(ry) &&
-        _isInteger(x) && _isInteger(y);
+    bool expectIntegers = _nearlyEqual((math.pi / 2 - thetaWidth.abs()), 0) &&
+        _isInteger(rx) &&
+        _isInteger(ry) &&
+        _isInteger(x) &&
+        _isInteger(y);
 
     for (int i = 0; i < segments; i++) {
       final double endTheta = startTheta + thetaWidth;
@@ -801,8 +812,10 @@ class SurfacePath implements ui.Path {
       unitPts0y = unitPts0y * ry;
       unitPts1x = unitPts1x * rx;
       unitPts1y = unitPts1y * ry;
-      double xStart = unitPts0x * cosXAxisRotation - unitPts0y * sinXAxisRotation;
-      double yStart = unitPts0y * cosXAxisRotation + unitPts0x * sinXAxisRotation;
+      double xStart =
+          unitPts0x * cosXAxisRotation - unitPts0y * sinXAxisRotation;
+      double yStart =
+          unitPts0y * cosXAxisRotation + unitPts0x * sinXAxisRotation;
       double xEnd = unitPts1x * cosXAxisRotation - unitPts1y * sinXAxisRotation;
       double yEnd = unitPts1y * cosXAxisRotation + unitPts1x * sinXAxisRotation;
       if (expectIntegers) {
@@ -832,12 +845,12 @@ class SurfacePath implements ui.Path {
   /// describe an arc.
   @override
   void relativeArcToPoint(
-      ui.Offset arcEndDelta, {
-        ui.Radius radius = ui.Radius.zero,
-        double rotation = 0.0,
-        bool largeArc = false,
-        bool clockwise = true,
-      }) {
+    ui.Offset arcEndDelta, {
+    ui.Radius radius = ui.Radius.zero,
+    double rotation = 0.0,
+    bool largeArc = false,
+    bool clockwise = true,
+  }) {
     assert(offsetIsValid(arcEndDelta));
     assert(radiusIsValid(radius));
 
@@ -932,7 +945,8 @@ class SurfacePath implements ui.Path {
         // Index 1 is at startAngle == 0.
         double startIndex = startOver90I + 1.0 % 4.0;
         startIndex = startIndex < 0 ? startIndex + 4.0 : startIndex;
-        _addOval(oval,
+        _addOval(
+            oval,
             sweepAngle > 0 ? SPathDirection.kCW : SPathDirection.kCCW,
             startIndex.toInt());
         return;
@@ -1013,19 +1027,20 @@ class SurfacePath implements ui.Path {
       scale = _computeMinScale(blRadiusY, brRadiusY, height, scale);
 
       // Inlined version of:
-         moveTo(left, bottom - scale * blRadiusY);
-         lineTo(left, top + scale * tlRadiusY);
-         conicTo(left, top, left + scale * tlRadiusX, top, weight);
-         lineTo(right - scale * trRadiusX, top);
-         conicTo(right, top, right, top + scale * trRadiusY, weight);
-         lineTo(right, bottom - scale * brRadiusY);
-         conicTo(right, bottom, right - scale * brRadiusX, bottom, weight);
-         lineTo(left + scale * blRadiusX, bottom);
-         conicTo(left, bottom, left, bottom - scale * blRadiusY, weight);
+      moveTo(left, bottom - scale * blRadiusY);
+      lineTo(left, top + scale * tlRadiusY);
+      conicTo(left, top, left + scale * tlRadiusX, top, weight);
+      lineTo(right - scale * trRadiusX, top);
+      conicTo(right, top, right, top + scale * trRadiusY, weight);
+      lineTo(right, bottom - scale * brRadiusY);
+      conicTo(right, bottom, right - scale * brRadiusX, bottom, weight);
+      lineTo(left + scale * blRadiusX, bottom);
+      conicTo(left, bottom, left, bottom - scale * blRadiusY, weight);
       close();
       // SkAutoDisableDirectionCheck.
       _firstDirection = isRRect ? direction : SPathDirection.kUnknown;
-      pathRef.setIsRRect(isRRect, direction == SPathDirection.kCCW, startIndex % 8, rrect);
+      pathRef.setIsRRect(
+          isRRect, direction == SPathDirection.kCCW, startIndex % 8, rrect);
     }
     _debugValidate();
   }
@@ -1038,10 +1053,12 @@ class SurfacePath implements ui.Path {
   /// matrix stored in column major order.
   @override
   void addPath(ui.Path path, ui.Offset offset, {Float64List? matrix4}) {
-    _addPath(path, offset.dx, offset.dy, matrix4 == null ? null : toMatrix32(matrix4), SPathAddPathMode.kAppend);
+    _addPath(path, offset.dx, offset.dy,
+        matrix4 == null ? null : toMatrix32(matrix4), SPathAddPathMode.kAppend);
   }
 
-  void _addPath(ui.Path path, double offsetX, double offsetY, Float32List? matrix4, int mode) {
+  void _addPath(ui.Path path, double offsetX, double offsetY,
+      Float32List? matrix4, int mode) {
     SurfacePath source = path as SurfacePath;
     if (source.pathRef.isEmpty) {
       return;
@@ -1055,7 +1072,8 @@ class SurfacePath implements ui.Path {
 
     // Fast path add points,verbs if matrix doesn't have perspective and
     // we are not extending.
-    if (mode == SPathAddPathMode.kAppend && (matrix4 == null || _isSimple2dTransform(matrix4))) {
+    if (mode == SPathAddPathMode.kAppend &&
+        (matrix4 == null || _isSimple2dTransform(matrix4))) {
       pathRef._append(source.pathRef);
     } else {
       bool firstVerb = true;
@@ -1065,12 +1083,17 @@ class SurfacePath implements ui.Path {
       while ((verb = iter.next(outPts)) != SPath.kDoneVerb) {
         switch (verb) {
           case SPath.kMoveVerb:
-            double point0X = matrix4 == null ? outPts[0] + offsetX
-                : (matrix4[0] * (outPts[0] + offsetX))
-                + (matrix4[4] * (outPts[1] + offsetY)) + matrix4[12];
-            double point0Y = matrix4 == null ? outPts[1] + offsetY
-                : (matrix4[1] * (outPts[0] + offsetX))
-                + (matrix4[5] * (outPts[1] + offsetY)) + matrix4[13] + offsetY;
+            double point0X = matrix4 == null
+                ? outPts[0] + offsetX
+                : (matrix4[0] * (outPts[0] + offsetX)) +
+                    (matrix4[4] * (outPts[1] + offsetY)) +
+                    matrix4[12];
+            double point0Y = matrix4 == null
+                ? outPts[1] + offsetY
+                : (matrix4[1] * (outPts[0] + offsetX)) +
+                    (matrix4[5] * (outPts[1] + offsetY)) +
+                    matrix4[13] +
+                    offsetY;
             if (firstVerb && !pathRef.isEmpty) {
               assert(mode == SPathAddPathMode.kExtend);
               // In case last contour is closed inject move to.
@@ -1085,8 +1108,10 @@ class SurfacePath implements ui.Path {
                 lastPointY = pathRef.points[listIndex];
               }
               // don't add lineTo if it is degenerate.
-              if (fLastMoveToIndex < 0 || (previousPointCount != 0) ||
-                  lastPointX != point0X || lastPointY != point0Y) {
+              if (fLastMoveToIndex < 0 ||
+                  (previousPointCount != 0) ||
+                  lastPointX != point0X ||
+                  lastPointY != point0Y) {
                 lineTo(outPts[0], outPts[1]);
               }
             } else {
@@ -1145,7 +1170,8 @@ class SurfacePath implements ui.Path {
   @override
   void extendWithPath(ui.Path path, ui.Offset offset, {Float64List? matrix4}) {
     assert(offsetIsValid(offset));
-    _addPath(path, offset.dx, offset.dy, matrix4 == null ? null : toMatrix32(matrix4), SPathAddPathMode.kExtend);
+    _addPath(path, offset.dx, offset.dy,
+        matrix4 == null ? null : toMatrix32(matrix4), SPathAddPathMode.kExtend);
   }
 
   /// Tests to see if the given point is within the path. (That is, whether the
@@ -1169,8 +1195,7 @@ class SurfacePath implements ui.Path {
     if (!this.getBounds().contains(point)) {
       return isInverse;
     }
-    final PathWinding windings = PathWinding(pathRef,
-        point.dx, point.dy);
+    final PathWinding windings = PathWinding(pathRef, point.dx, point.dy);
     bool evenOddFill = ui.PathFillType.evenOdd == _fillType;
     int w = windings.w;
     if (evenOddFill) {
@@ -1184,7 +1209,7 @@ class SurfacePath implements ui.Path {
       return (onCurveCount ^ (isInverse ? 1 : 0)) != 0;
     }
     if ((onCurveCount & 1) != 0 || evenOddFill) {
-      return (onCurveCount & 1) != 0 ^ (isInverse ? 1: 0);
+      return (onCurveCount & 1) != 0 ^ (isInverse ? 1 : 0);
     }
     // If the point touches an even number of curves, and the fill is winding,
     // check for coincidence. Count coincidence as places where the on curve
@@ -1226,9 +1251,9 @@ class SurfacePath implements ui.Path {
           for (int index = 0; index < last; ++index) {
             final ui.Offset test = tangents[index];
             double crossProduct = test.dx * tangent.dy - test.dy * tangent.dx;
-            if (_nearlyEqual(crossProduct, 0)
-                && SPath.scalarSignedAsInt(tangent.dx * test.dx) <= 0
-                && SPath.scalarSignedAsInt(tangent.dy * test.dy) <= 0) {
+            if (_nearlyEqual(crossProduct, 0) &&
+                SPath.scalarSignedAsInt(tangent.dx * test.dx) <= 0 &&
+                SPath.scalarSignedAsInt(tangent.dy * test.dy) <= 0) {
               ui.Offset offset = tangents.removeAt(last);
               if (index != tangents.length) {
                 tangents[index] = offset;
@@ -1311,7 +1336,7 @@ class SurfacePath implements ui.Path {
     int pointCount = pathRef.countPoints();
     // Last moveTo index may exceed point count if data comes from fuzzer.
     if (0 < fLastMoveToIndex && fLastMoveToIndex < pointCount) {
-        pointCount = fLastMoveToIndex;
+      pointCount = fLastMoveToIndex;
     }
     if (pointCount > 3) {
       int pointIndex = 0;
@@ -1320,8 +1345,8 @@ class SurfacePath implements ui.Path {
         pointIndex++;
       }
       --pointIndex;
-      int convexity = Convexicator.bySign(pathRef, pointIndex,
-          pointCount - pointIndex);
+      int convexity =
+          Convexicator.bySign(pathRef, pointIndex, pointCount - pointIndex);
       if (SPathConvexityType.kConcave == convexity) {
         setConvexityType(SPathConvexityType.kConcave);
         return SPathConvexityType.kConcave;
@@ -1340,52 +1365,53 @@ class SurfacePath implements ui.Path {
     while ((verb = iter.next(pts)) != SPath.kDoneVerb) {
       switch (verb) {
         case SPath.kMoveVerb:
-            // If we have more than  1 contour bail out.
-            if (++contourCount > 1) {
-              return _setComputedConvexity(SPathConvexityType.kConcave);
-            }
-            state.setMovePt(pts[0], pts[1]);
-            count = 0;
-            break;
-        case SPath.kLineVerb:
-            count = 1;
-            break;
-        case SPath.kQuadVerb:
-            count = 2;
-            break;
-        case SPath.kConicVerb:
-            count = 2;
-            break;
-        case SPath.kCubicVerb:
-            count = 3;
-            break;
-        case SPath.kCloseVerb:
-            if (!state.close()) {
-              if (!state.isFinite) {
-                return SPathConvexityType.kUnknown;
-              }
-              return _setComputedConvexity(SPathConvexityType.kConcave);
-            }
-            count = 0;
-            break;
-        default:
+          // If we have more than  1 contour bail out.
+          if (++contourCount > 1) {
             return _setComputedConvexity(SPathConvexityType.kConcave);
-      }
-      for (int i = 2, len = count * 2; i <= len; i+=2) {
-          if (!state.addPoint(pts[i], pts[i + 1])) {
+          }
+          state.setMovePt(pts[0], pts[1]);
+          count = 0;
+          break;
+        case SPath.kLineVerb:
+          count = 1;
+          break;
+        case SPath.kQuadVerb:
+          count = 2;
+          break;
+        case SPath.kConicVerb:
+          count = 2;
+          break;
+        case SPath.kCubicVerb:
+          count = 3;
+          break;
+        case SPath.kCloseVerb:
+          if (!state.close()) {
             if (!state.isFinite) {
               return SPathConvexityType.kUnknown;
             }
             return _setComputedConvexity(SPathConvexityType.kConcave);
           }
+          count = 0;
+          break;
+        default:
+          return _setComputedConvexity(SPathConvexityType.kConcave);
+      }
+      for (int i = 2, len = count * 2; i <= len; i += 2) {
+        if (!state.addPoint(pts[i], pts[i + 1])) {
+          if (!state.isFinite) {
+            return SPathConvexityType.kUnknown;
+          }
+          return _setComputedConvexity(SPathConvexityType.kConcave);
+        }
       }
     }
 
     if (this._firstDirection == SPathDirection.kUnknown) {
-      if (state.firstDirection == SPathDirection.kUnknown
-          && !pathRef.getBounds().isEmpty) {
-        return _setComputedConvexity(state.reversals < 3 ?
-            SPathConvexityType.kConvex : SPathConvexityType.kConcave);
+      if (state.firstDirection == SPathDirection.kUnknown &&
+          !pathRef.getBounds().isEmpty) {
+        return _setComputedConvexity(state.reversals < 3
+            ? SPathConvexityType.kConvex
+            : SPathConvexityType.kConcave);
       }
       _firstDirection = state.firstDirection;
     }
@@ -1453,7 +1479,7 @@ class SurfacePath implements ui.Path {
           maxY = conicBounds.maxY;
           break;
         case SPath.kCubicVerb:
-          cubicBounds??= _CubicBounds();
+          cubicBounds ??= _CubicBounds();
           cubicBounds.calculateBounds(points, pIndex);
           minX = cubicBounds.minX;
           minY = cubicBounds.minY;
@@ -1509,7 +1535,7 @@ class SurfacePath implements ui.Path {
   /// Used for web optimization of physical shape represented as
   /// a persistent div.
   ui.Rect? get webOnlyPathAsCircle =>
-    pathRef.isOval == -1 ? null : pathRef.getBounds();
+      pathRef.isOval == -1 ? null : pathRef.getBounds();
 
   /// Serializes this path to a value that's sent to a CSS custom painter for
   /// painting.
@@ -1537,7 +1563,8 @@ ui.Offset? _arcIsLonePoint(ui.Rect oval, double startAngle, double sweepAngle) {
 
 // Computed scaling factor for opposing sides with corner radius given
 // a [limit] max width or height.
-double _computeMinScale(double radius1, double radius2, double limit, double scale) {
+double _computeMinScale(
+    double radius1, double radius2, double limit, double scale) {
   final double totalRadius = radius1 + radius2;
   if (totalRadius <= limit) {
     // Radii fit within the limit so return existing scale factor.
@@ -1547,20 +1574,21 @@ double _computeMinScale(double radius1, double radius2, double limit, double sca
 }
 
 bool _isSimple2dTransform(Float32List m) =>
-    m[15] == 1.0 &&  // start reading from the last element to eliminate range checks in subsequent reads.
-        m[14] == 0.0 && // z translation is NOT simple
-        // m[13] - y translation is simple
-        // m[12] - x translation is simple
-        m[11] == 0.0 &&
-        m[10] == 1.0 &&
-        m[9] == 0.0 &&
-        m[8] == 0.0 &&
-        m[7] == 0.0 &&
-        m[6] == 0.0 &&
-        // m[5] - scale y is simple
-        // m[4] - 2D rotation is simple
-        m[3] == 0.0 &&
-        m[2] == 0.0;
+    m[15] ==
+        1.0 && // start reading from the last element to eliminate range checks in subsequent reads.
+    m[14] == 0.0 && // z translation is NOT simple
+    // m[13] - y translation is simple
+    // m[12] - x translation is simple
+    m[11] == 0.0 &&
+    m[10] == 1.0 &&
+    m[9] == 0.0 &&
+    m[8] == 0.0 &&
+    m[7] == 0.0 &&
+    m[6] == 0.0 &&
+    // m[5] - scale y is simple
+    // m[4] - 2D rotation is simple
+    m[3] == 0.0 &&
+    m[2] == 0.0;
 // m[1] - 2D rotation is simple
 // m[0] - scale x is simple
 

@@ -5,7 +5,8 @@
 part of engine;
 
 /// Computes tangent at point x,y on a line.
-void tangentLine(Float32List pts, double x, double y, List<ui.Offset> tangents) {
+void tangentLine(
+    Float32List pts, double x, double y, List<ui.Offset> tangents) {
   final double y0 = pts[1];
   final double y1 = pts[3];
   if (!SPath.between(y0, y, y1)) {
@@ -25,7 +26,8 @@ void tangentLine(Float32List pts, double x, double y, List<ui.Offset> tangents) 
 }
 
 /// Computes tangent at point x,y on a quadratic curve.
-void tangentQuad(Float32List pts, double x, double y, List<ui.Offset> tangents) {
+void tangentQuad(
+    Float32List pts, double x, double y, List<ui.Offset> tangents) {
   final double y0 = pts[1];
   final double y1 = pts[3];
   final double y2 = pts[5];
@@ -71,7 +73,7 @@ ui.Offset _evalQuadTangentAt(double x0, double y0, double x1, double y1,
   double ay = y2 - y1 - by;
   double tx = ax * t + bx;
   double ty = ay * t + by;
-  return ui.Offset(tx * 2 , ty * 2);
+  return ui.Offset(tx * 2, ty * 2);
 }
 
 /// Computes tangent at point x,y on a conic curve.
@@ -102,8 +104,8 @@ void tangentConic(Float32List pts, double x, double y, double weight,
   int n = quadRoots.findRoots(A, 2 * B, C);
   for (int index = 0; index < n; ++index) {
     double t = index == 0 ? quadRoots.root0! : quadRoots.root1!;
-    double xt = _conicEvalNumerator(x0, x1, x2, weight, t)
-        / _conicEvalDenominator(weight, t);
+    double xt = _conicEvalNumerator(x0, x1, x2, weight, t) /
+        _conicEvalDenominator(weight, t);
     if (!_nearlyEqual(x, xt)) {
       continue;
     }
@@ -113,28 +115,31 @@ void tangentConic(Float32List pts, double x, double y, double weight,
 }
 
 /// Computes tangent at point x,y on a cubic curve.
-void tangentCubic(Float32List pts, double x, double y, List<ui.Offset> tangents) {
+void tangentCubic(
+    Float32List pts, double x, double y, List<ui.Offset> tangents) {
   final double y3 = pts[7];
   final double y0 = pts[1];
   final double y1 = pts[3];
   final double y2 = pts[5];
-  if (!SPath.between(y0, y, y1) && !SPath.between(y1, y, y2)
-      && !SPath.between(y2, y, y3)) {
+  if (!SPath.between(y0, y, y1) &&
+      !SPath.between(y1, y, y2) &&
+      !SPath.between(y2, y, y3)) {
     return;
   }
   final double x0 = pts[0];
   final double x1 = pts[2];
   final double x2 = pts[4];
   final double x3 = pts[6];
-  if (!SPath.between(x0, x, x1) && !SPath.between(x1, x, x2)
-      && !SPath.between(x2, x, x3)) {
+  if (!SPath.between(x0, x, x1) &&
+      !SPath.between(x1, x, x2) &&
+      !SPath.between(x2, x, x3)) {
     return;
   }
   final Float32List dst = Float32List(20);
   int n = _chopCubicAtYExtrema(pts, dst);
   for (int i = 0; i <= n; ++i) {
     int bufferPos = i * 6;
-    double? t = _chopMonoAtY(dst, i * 6 , y);
+    double? t = _chopMonoAtY(dst, i * 6, y);
     if (t == null) {
       continue;
     }
@@ -182,12 +187,12 @@ ui.Offset _evalCubicTangentAt(Float32List points, int bufferPos, double t) {
 ui.Offset _evalCubicDerivative(double x0, double y0, double x1, double y1,
     double x2, double y2, double x3, double y3, double t) {
   final _SkQuadCoefficients coeff = _SkQuadCoefficients(
-      x3 + 3 * (x1 - x2) - x0,
-      y3 + 3 * (y1 - y2) - y0,
-      2 * (x2 - (2 * x1) + x0),
-      2 * (y2 - (2 * y1) + y0),
-      x1 - x0,
-      y1 - y0,
+    x3 + 3 * (x1 - x2) - x0,
+    y3 + 3 * (y1 - y2) - y0,
+    2 * (x2 - (2 * x1) + x0),
+    2 * (y2 - (2 * y1) + y0),
+    x1 - x0,
+    y1 - y0,
   );
   return ui.Offset(coeff.evalX(t), coeff.evalY(t));
 }

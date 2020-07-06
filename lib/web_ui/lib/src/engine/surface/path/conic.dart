@@ -144,8 +144,8 @@ class Conic {
     }
     dst.first = Conic(p0x, p0y, (p0x + wp1.dx) * scale, (p0y + wp1.dy) * scale,
         m.dx, m.dy, newW);
-    dst.second = Conic(m.dx, m.dy, (p2x + wp1.dx) * scale, (p2y + wp1.dy) * scale,
-        p2x, p2y, newW);
+    dst.second = Conic(m.dx, m.dy, (p2x + wp1.dx) * scale,
+        (p2y + wp1.dy) * scale, p2x, p2y, newW);
   }
 
   void chopAtYExtrema(List<Conic> dst) {
@@ -251,14 +251,10 @@ class Conic {
       cp1y = chopPointY;
     }
 
-    final Conic conic0 = Conic(p0x, p0y,
-        dx0 / dz0, cp0y,
-        chopPointX, chopPointY,
-        w0);
-    final Conic conic1 = Conic(chopPointX, chopPointY,
-        dx2 / dz2, cp1y,
-        p2x, p2y,
-        w2);
+    final Conic conic0 =
+        Conic(p0x, p0y, dx0 / dz0, cp0y, chopPointX, chopPointY, w0);
+    final Conic conic1 =
+        Conic(chopPointX, chopPointY, dx2 / dz2, cp1y, p2x, p2y, w2);
     dst.add(conic0);
     dst.add(conic1);
     return true;
@@ -303,7 +299,8 @@ class Conic {
     // The derivative equation returns a zero tangent vector when t is 0 or 1,
     // and the control point is equal to the end point.
     // In this case, use the conic endpoints to compute the tangent.
-    if ((t == 0 && p0x == p1x && p0y == p1y) || (t == 1 && p1x == p2x && p1y == p2y)) {
+    if ((t == 0 && p0x == p1x && p0y == p1y) ||
+        (t == 1 && p1x == p2x && p1y == p2y)) {
       return ui.Offset(p2x - p0x, p2y - p0y);
     }
     double p20x = p2x - p0x;
@@ -322,13 +319,13 @@ class Conic {
   }
 }
 
-double _conicEvalNumerator(double p0, double p1, double p2,
-    double w, double t) {
+double _conicEvalNumerator(
+    double p0, double p1, double p2, double w, double t) {
   assert(t >= 0 && t <= 1);
   final double src2w = p1 * w;
-  final  C = p0;
-  final  A = p2 - 2 * src2w + C;
-  final  B = 2 * (src2w - C);
+  final C = p0;
+  final A = p2 - 2 * src2w + C;
+  final B = 2 * (src2w - C);
   return polyEval(A, B, C, t);
 }
 
@@ -368,12 +365,10 @@ class _QuadBounds {
       if ((t1 >= 0) && (t1 <= 1.0)) {
         // Solve (x,y) for curve at t = tx to find extrema
         final double tprime = 1.0 - t1;
-        final double extremaX = (tprime * tprime * x1) +
-            (2 * t1 * tprime * cpX) +
-            (t1 * t1 * x2);
-        final double extremaY = (tprime * tprime * y1) +
-            (2 * t1 * tprime * cpY) +
-            (t1 * t1 * y2);
+        final double extremaX =
+            (tprime * tprime * x1) + (2 * t1 * tprime * cpX) + (t1 * t1 * x2);
+        final double extremaY =
+            (tprime * tprime * y1) + (2 * t1 * tprime * cpY) + (t1 * t1 * y2);
         // Expand bounds.
         minX = math.min(minX, extremaX);
         maxX = math.max(maxX, extremaX);

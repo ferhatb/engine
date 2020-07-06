@@ -32,15 +32,15 @@ int _chopCubicAtYExtrema(Float32List points, Float32List dest) {
 
 _QuadRoots _findCubicExtrema(double a, double b, double c, double d) {
   // A,B,C scaled by 1/3 to simplify
-  final double A = d - a + 3*(b - c);
-  final double B = 2*(a - b - b + c);
+  final double A = d - a + 3 * (b - c);
+  final double B = 2 * (a - b - b + c);
   final double C = b - a;
   return _QuadRoots()..findRoots(A, B, C);
 }
 
 /// Subdivides cubic curve for a list of t values.
-void _chopCubicAt(List<double> tValues, Float32List points,
-    Float32List outPts) {
+void _chopCubicAt(
+    List<double> tValues, Float32List points, Float32List outPts) {
   if (assertionsEnabled) {
     for (int i = 0; i < tValues.length - 1; i++) {
       final double tValue = tValues[i];
@@ -50,8 +50,8 @@ void _chopCubicAt(List<double> tValues, Float32List points,
     for (int i = 0; i < tValues.length - 1; i++) {
       final double tValue = tValues[i];
       final double nextTValue = tValues[i + 1];
-      assert(nextTValue > tValue,
-          'Expecting t value to monotonically increase');
+      assert(
+          nextTValue > tValue, 'Expecting t value to monotonically increase');
     }
   }
   int rootCount = tValues.length;
@@ -72,11 +72,12 @@ void _chopCubicAt(List<double> tValues, Float32List points,
       bufferPos += 6;
 
       // watch out in case the renormalized t isn't in range
-      if ((t = _validUnitDivide(tValues[i+1] - tValues[i],
-          1.0 - tValues[i])) == null) {
+      if ((t = _validUnitDivide(
+              tValues[i + 1] - tValues[i], 1.0 - tValues[i])) ==
+          null) {
         // Can't renormalize last point, just create a degenerate cubic.
-        outPts[bufferPos + 4] = outPts[bufferPos + 5] = outPts[bufferPos + 6]
-            = points[bufferPos + 3];
+        outPts[bufferPos + 4] = outPts[bufferPos + 5] =
+            outPts[bufferPos + 6] = points[bufferPos + 3];
         break;
       }
     }
@@ -86,8 +87,8 @@ void _chopCubicAt(List<double> tValues, Float32List points,
 /// Subdivides cubic curve at [t] and writes to [outPts] at position [outIndex].
 ///
 /// The cubic points are read from [points] at [bufferPos] offset.
-void _chopCubicAtT(Float32List points, int bufferPos,
-    Float32List outPts, int outIndex, double t) {
+void _chopCubicAtT(Float32List points, int bufferPos, Float32List outPts,
+    int outIndex, double t) {
   assert(t > 0 && t < 1);
   final double p3y = points[bufferPos + 7];
   final double p0x = points[bufferPos + 0];
@@ -161,9 +162,9 @@ double? _chopMonoAtY(Float32List _buffer, int bufferStartPos, double y) {
   final double tolerance = 1.0 / 65536;
   do {
     final double tMid = (tPos + tNeg) / 2.0;
-    final double y01 = ycrv0 + (ycrv1- ycrv0) * tMid;
-    final double y12 = ycrv1 + (ycrv2- ycrv1) * tMid;
-    final double y23 = ycrv2 + (ycrv3- ycrv2) * tMid;
+    final double y01 = ycrv0 + (ycrv1 - ycrv0) * tMid;
+    final double y12 = ycrv1 + (ycrv2 - ycrv1) * tMid;
+    final double y23 = ycrv2 + (ycrv3 - ycrv2) * tMid;
     final double y012 = y01 + (y12 - y01) * tMid;
     final double y123 = y12 + (y23 - y12) * tMid;
     final double y0123 = y012 + (y123 - y012) * tMid;
@@ -172,8 +173,7 @@ double? _chopMonoAtY(Float32List _buffer, int bufferStartPos, double y) {
     }
     if (y0123 < 0) {
       tNeg = tMid;
-    }
-    else {
+    } else {
       tPos = tMid;
     }
   } while (((tPos - tNeg).abs() > tolerance));
