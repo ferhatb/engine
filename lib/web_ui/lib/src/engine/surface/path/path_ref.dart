@@ -68,7 +68,6 @@ class PathRef {
   /// Given a point index stores [x],[y].
   void setPoint(int pointIndex, double x, double y) {
     assert(pointIndex < _fPointsLength);
-    assert(_isPointFinite(x, y));
     int index = pointIndex * 2;
     _fPoints[index] = x;
     _fPoints[index + 1] = y;
@@ -363,7 +362,7 @@ class PathRef {
     } else {
       js_util.callMethod(_conicWeights, 'set', [ref._conicWeights]);
     }
-    assert(_fVerbs[0] != 0);
+    assert(verbCount == 0 || _fVerbs[0] != 0);
     fBoundsIsDirty = ref.fBoundsIsDirty;
     if (!fBoundsIsDirty) {
       fBounds = ref.fBounds;
@@ -469,7 +468,7 @@ class PathRef {
     out.startEdit();
   }
 
-  /// Computes bounds based on points.
+  /// Computes bounds and fIsFinite based on points.
   ///
   /// Used by getBounds() and cached.
   void _computeBounds() {
@@ -478,21 +477,34 @@ class PathRef {
     int pointCount = countPoints();
     fBoundsIsDirty = false;
     cachedBounds = null;
+    double accum = 0;
     if (pointCount == 0) {
       fBounds = ui.Rect.zero;
+      fIsFinite = true;
     } else {
       double minX, maxX, minY, maxY;
       minX = maxX = _fPoints[0];
+      accum *= minX;
       minY = maxY = _fPoints[1];
+      accum *= minY;
       for (int i = 2, len = 2 * pointCount; i < len; i += 2) {
         final double x = _fPoints[i];
+        accum *= x;
         final double y = _fPoints[i + 1];
+        accum *= y;
         minX = math.min(minX, x);
         minY = math.min(minY, y);
         maxX = math.max(maxX, x);
         maxY = math.max(maxY, y);
       }
-      fBounds = ui.Rect.fromLTRB(minX, minY, maxX, maxY);
+      bool allFinite = (accum * 0 == 0);
+      if (allFinite) {
+        fBounds = ui.Rect.fromLTRB(minX, minY, maxX, maxY);
+        fIsFinite = true;
+      } else {
+        fBounds = ui.Rect.zero;
+        fIsFinite = false;
+      }
     }
   }
 
@@ -797,6 +809,41 @@ class PathRef {
   void debugValidate() {
     assert(isValid);
   }
+
+  /// Returns point index of maximum y in path points.
+  int findMaxY(int pointIndex, int count) {
+    assert(count > 0);
+    // move to y component.
+    double max = _fPoints[pointIndex * 2 + 1];
+    int firstIndex = pointIndex;
+    for (int i = 1; i < count; i++) {
+      double y = _fPoints[(pointIndex + i) * 2];
+      if (y > max) {
+        max = y;
+        firstIndex = pointIndex + i;
+      }
+    }
+    return firstIndex;
+  }
+
+  /// Returns index of point that is different from point at [index].
+  ///
+  /// Used to get previous/next points that dont coincide for calculating
+  /// cross product at a point.
+  int findDiffPoint(int index, int n, int inc) {
+    int i = index;
+    for (;;) {
+      i = (i + inc) % n;
+      if (i == index) {   // we wrapped around, so abort
+        break;
+      }
+      if (_fPoints[index * 2] != _fPoints[i * 2] ||
+          _fPoints[index * 2 + 1] != _fPoints[i * 2 + 1]) { // found a different point, success!
+        break;
+      }
+    }
+    return i;
+  }
 }
 
 // Return true if all components are finite.
@@ -824,7 +871,27 @@ class PathRefIterator {
 
   int iterIndex = 0;
 
-  // Returns next verb and [iterIndex] with location of first point.
+  /// Returns current point index.
+  int get pointIndex => _pointIndex ~/ 2;
+
+  /// Advances to start of next contour (move verb).
+  ///
+  /// Usage:
+  ///   int startPointIndex = PathRefIterator._pointIndex;
+  ///   int nextContourPointIndex = iter.skipToNextContour();
+  ///   int pointCountInContour = nextContourPointIndex - startPointIndex;
+  int skipToNextContour() {
+    int verb = -1;
+    int curPointIndex = _pointIndex;
+    do {
+      curPointIndex = _pointIndex;
+      verb = nextIndex();
+    } while (verb != SPath.kDoneVerb
+        && (iterIndex == 0 || verb != SPath.kMoveVerb));
+    return (verb == SPath.kDoneVerb ? _pointIndex : curPointIndex) ~/ 2;
+  }
+
+  /// Returns next verb and [iterIndex] with location of first point.
   int nextIndex() {
     if (_verbIndex == pathRef.countVerbs()) {
       return SPath.kDoneVerb;

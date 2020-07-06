@@ -29,13 +29,13 @@ class SurfacePath implements ui.Path {
   ui.PathFillType _fillType;
   // Skia supports inverse winding as part of path fill type.
   // For Flutter inverse is always false.
-  static const bool _isInverseFillType = false;
+  bool _isInverseFillType = false;
   // Store point index + 1 of last moveTo instruction.
   // If contour has been closed or path is in initial state, the value is
   // negated.
   int fLastMoveToIndex;
-  int _convexityType;
-  int _firstDirection;
+  int _convexityType = SPathConvexityType.kUnknown;
+  int _firstDirection = SPathDirection.kUnknown;
 
   SurfacePath() : pathRef = PathRef() {
     _resetFields();
@@ -44,6 +44,10 @@ class SurfacePath implements ui.Path {
   void _resetFields() {
     fLastMoveToIndex = kInitialLastMoveToIndexValue;
     _fillType = ui.PathFillType.nonZero;
+    _resetAfterEdit();
+  }
+
+  void _resetAfterEdit() {
     _convexityType = SPathConvexityType.kUnknown;
     _firstDirection = SPathDirection.kUnknown;
   }
@@ -170,6 +174,7 @@ class SurfacePath implements ui.Path {
     fLastMoveToIndex = pathRef.countPoints() + 1;
     int pointIndex = pathRef.growForVerb(SPathVerb.kMove, 0);
     pathRef.setPoint(pointIndex, x, y);
+    _resetAfterEdit();
   }
 
   /// Starts a new subpath at the given offset from the current point.
@@ -209,6 +214,7 @@ class SurfacePath implements ui.Path {
     }
     int pointIndex = pathRef.growForVerb(SPathVerb.kLine, 0);
     pathRef.setPoint(pointIndex, x, y);
+    _resetAfterEdit();
   }
 
   /// Adds a straight line segment from the current point to the point
@@ -257,6 +263,7 @@ class SurfacePath implements ui.Path {
     int pointIndex = pathRef.growForVerb(SPathVerb.kQuad, 0);
     pathRef.setPoint(pointIndex, x1, y1);
     pathRef.setPoint(pointIndex + 1, x2, y2);
+    _resetAfterEdit();
   }
 
   /// Adds a bezier segment that curves from the current point to the
@@ -270,6 +277,7 @@ class SurfacePath implements ui.Path {
     int pointIndex = pathRef.growForVerb(SPathVerb.kConic, w);
     pathRef.setPoint(pointIndex, x1, y1);
     pathRef.setPoint(pointIndex + 1, x2, y2);
+    _resetAfterEdit();
   }
 
   /// Adds a bezier segment that curves from the current point to the
@@ -303,6 +311,7 @@ class SurfacePath implements ui.Path {
     pathRef.setPoint(pointIndex, x1, y1);
     pathRef.setPoint(pointIndex + 1, x2, y2);
     pathRef.setPoint(pointIndex + 2, x3, y3);
+    _resetAfterEdit();
   }
 
   /// Adds a cubic bezier segment that curves from the current point
@@ -340,13 +349,14 @@ class SurfacePath implements ui.Path {
       // Signal that we need a moveTo to follow next if not specified.
       fLastMoveToIndex = -fLastMoveToIndex;
     }
+    _resetAfterEdit();
   }
 
   /// Adds a new subpath that consists of four lines that outline the
   /// given rectangle.
   @override
   void addRect(ui.Rect rect) {
-    _addRect(rect, SPathDirection.kCW, 0);
+    addRectWithDirection(rect, SPathDirection.kCW, 0);
   }
 
   bool _hasOnlyMoveTos() {
@@ -363,7 +373,7 @@ class SurfacePath implements ui.Path {
     return true;
   }
 
-  void _addRect(ui.Rect rect, int direction, int startIndex) {
+  void addRectWithDirection(ui.Rect rect, int direction, int startIndex) {
     assert(direction != SPathDirection.kUnknown);
     bool isRect = _hasOnlyMoveTos();
     // SkAutoDisableDirectionCheck.
@@ -387,6 +397,7 @@ class SurfacePath implements ui.Path {
     }
     pathRef.setIsRect(isRect, direction == SPathDirection.kCCW,
         0);
+    _resetAfterEdit();
     // SkAutoDisableDirectionCheck.
     _firstDirection = finalDirection;
     // TODO: optimize by setting pathRef bounds if bounds are already computed.
@@ -607,6 +618,7 @@ class SurfacePath implements ui.Path {
       Conic conic = conics[i];
       conicTo(conic.p1x, conic.p1y, conic.p2x, conic.p2y, conic.fW);
     }
+    _resetAfterEdit();
   }
 
   void _lineToIfNotTooCloseToLastPoint(double px, double py) {
@@ -863,7 +875,6 @@ class SurfacePath implements ui.Path {
     assert(direction != SPathDirection.kUnknown);
     bool isOval = _hasOnlyMoveTos();
 
-
     final double weight = SPath.scalarRoot2Over2;
     final double left = oval.left;
     final double right = oval.right;
@@ -886,7 +897,7 @@ class SurfacePath implements ui.Path {
     }
     close();
     pathRef.setIsOval(isOval, direction == SPathDirection.kCCW, 0);
-
+    _resetAfterEdit();
     // AutoDisableDirectionCheck
     if (isOval) {
       _firstDirection = direction;
@@ -953,6 +964,7 @@ class SurfacePath implements ui.Path {
     if (close) {
       this.close();
     }
+    _resetAfterEdit();
     _debugValidate();
   }
 
@@ -972,7 +984,7 @@ class SurfacePath implements ui.Path {
     ui.Rect bounds = rrect.outerRect;
     if (rrect.isRect || rrect.isEmpty) {
       // degenerate(rect) => radii points are collapsing.
-      _addRect(bounds, direction, (startIndex + 1) ~/ 2);
+      addRectWithDirection(bounds, direction, (startIndex + 1) ~/ 2);
     } else if (_isRRectOval(rrect)) {
       // degenerate(oval) => line points are collapsing.
       _addOval(bounds, direction, startIndex ~/ 2);
@@ -1011,43 +1023,6 @@ class SurfacePath implements ui.Path {
          conicTo(right, bottom, right - scale * brRadiusX, bottom, weight);
          lineTo(left + scale * blRadiusX, bottom);
          conicTo(left, bottom, left, bottom - scale * blRadiusY, weight);
-//      int pointIndex = pathRef.countPoints() * 2;
-//      Float32List points = pathRef.points;
-//      pathRef.growForVerb(SPath.kMoveVerb, 0);
-//      points[pointIndex++] = left;
-//      points[pointIndex++] = bottom - scale * blRadiusY;
-//      pathRef.growForVerb(SPath.kLineVerb, 0);
-//      points[pointIndex++] = left;
-//      points[pointIndex++] = top + scale * tlRadiusY;
-//      pathRef.growForVerb(SPath.kConicVerb, weight);
-//      points[pointIndex++] = left;
-//      points[pointIndex++] = top;
-//      points[pointIndex++] = left + scale * tlRadiusX;
-//      points[pointIndex++] = top;
-//      pathRef.growForVerb(SPath.kLineVerb, 0);
-//      points[pointIndex++] = right - scale * trRadiusX;
-//      points[pointIndex++] = top;
-//      pathRef.growForVerb(SPath.kConicVerb, weight);
-//      points[pointIndex++] = right;
-//      points[pointIndex++] = top;
-//      points[pointIndex++] = right;
-//      points[pointIndex++] = top + scale * trRadiusY;
-//      pathRef.growForVerb(SPath.kLineVerb, 0);
-//      points[pointIndex++] = right;
-//      points[pointIndex++] = bottom - scale * brRadiusY;
-//      pathRef.growForVerb(SPath.kConicVerb, weight);
-//      points[pointIndex++] = right;
-//      points[pointIndex++] = bottom;
-//      points[pointIndex++] = right - scale * brRadiusX;
-//      points[pointIndex++] = bottom;
-//      pathRef.growForVerb(SPath.kLineVerb, 0);
-//      points[pointIndex++] = left + scale * blRadiusX;
-//      points[pointIndex++] = bottom;
-//      pathRef.growForVerb(SPath.kConicVerb, weight);
-//      points[pointIndex++] = left;
-//      points[pointIndex++] = bottom;
-//      points[pointIndex++] = left;
-//      points[pointIndex++] = bottom - scale * blRadiusY;
       close();
       // SkAutoDisableDirectionCheck.
       _firstDirection = isRRect ? direction : SPathDirection.kUnknown;
@@ -1160,6 +1135,7 @@ class SurfacePath implements ui.Path {
         points[p + 1] = (matrix4[1] * x) + (matrix4[5] * y) + matrix4[13];
       }
     }
+    _resetAfterEdit();
   }
 
   /// Adds the given path to this path by extending the current segment of this
@@ -1247,7 +1223,7 @@ class SurfacePath implements ui.Path {
       if (tangents.length > oldCount) {
         int last = tangents.length - 1;
         final ui.Offset tangent = tangents[last];
-        if (_nearlyEqual(_lengthSquared(tangent), 0)) {
+        if (_nearlyEqual(_lengthSquaredOffset(tangent), 0)) {
           tangents.remove(last);
         } else {
           for (int index = 0; index < last; ++index) {
@@ -1297,6 +1273,127 @@ class SurfacePath implements ui.Path {
       points[i] = transformedX;
       points[i + 1] = transformedY;
     }
+    // TODO: optimize for axis aligned or scale/translate type transforms.
+    _convexityType = SPathConvexityType.kUnknown;
+  }
+
+  void setConvexityType(int value) {
+    _convexityType = value;
+  }
+
+  int _setComputedConvexity(int value) {
+    assert(value != SPathConvexityType.kUnknown);
+    setConvexityType(value);
+    return value;
+  }
+
+  /// Returns the convexity type, computing if needed. Never returns kUnknown.
+  int get convexityType {
+    if (_convexityType != SPathConvexityType.kUnknown) {
+      return _convexityType;
+    }
+    return _internalGetConvexity();
+  }
+
+  /// Returns the current convexity type, skips computing if unknown.
+  ///
+  /// Provides a signal to path users if convexity has been calculated in
+  /// which case _firstDirection is a valid result.
+  int getConvexityTypeOrUnknown() => _convexityType;
+
+  /// Returns true if the path is convex. If necessary, it will first compute
+  /// the convexity.
+  bool get isConvex => SPathConvexityType.kConvex == convexityType;
+
+  // Computes convexity and first direction.
+  int _internalGetConvexity() {
+    final Float32List pts = Float32List(20);
+    PathIterator iter = PathIterator(pathRef, true);
+    // Check to see if path changes direction more than three times as quick
+    // concave test.
+    int pointCount = pathRef.countPoints();
+    // Last moveTo index may exceed point count if data comes from fuzzer.
+    if (0 < fLastMoveToIndex && fLastMoveToIndex < pointCount) {
+        pointCount = fLastMoveToIndex;
+    }
+    if (pointCount > 3) {
+      int pointIndex = 0;
+      // only consider the last of the initial move tos
+      while (SPath.kMoveVerb == iter.next(pts)) {
+        pointIndex++;
+      }
+      --pointIndex;
+      int convexity = Convexicator.bySign(pathRef, pointIndex,
+          pointCount - pointIndex);
+      if (SPathConvexityType.kConcave == convexity) {
+        setConvexityType(SPathConvexityType.kConcave);
+        return SPathConvexityType.kConcave;
+      } else if (SPathConvexityType.kUnknown == convexity) {
+        return SPathConvexityType.kUnknown;
+      }
+      iter = PathIterator(pathRef, true);
+    } else if (!pathRef.isFinite) {
+      return SPathConvexityType.kUnknown;
+    }
+    // Path passed quick concave check, now compute actual convexity.
+    int contourCount = 0;
+    int count;
+    Convexicator state = Convexicator();
+    int verb;
+    while ((verb = iter.next(pts)) != SPath.kDoneVerb) {
+      switch (verb) {
+        case SPath.kMoveVerb:
+            // If we have more than  1 contour bail out.
+            if (++contourCount > 1) {
+              return _setComputedConvexity(SPathConvexityType.kConcave);
+            }
+            state.setMovePt(pts[0], pts[1]);
+            count = 0;
+            break;
+        case SPath.kLineVerb:
+            count = 1;
+            break;
+        case SPath.kQuadVerb:
+            count = 2;
+            break;
+        case SPath.kConicVerb:
+            count = 2;
+            break;
+        case SPath.kCubicVerb:
+            count = 3;
+            break;
+        case SPath.kCloseVerb:
+            if (!state.close()) {
+              if (!state.isFinite) {
+                return SPathConvexityType.kUnknown;
+              }
+              return _setComputedConvexity(SPathConvexityType.kConcave);
+            }
+            count = 0;
+            break;
+        default:
+            return _setComputedConvexity(SPathConvexityType.kConcave);
+      }
+      for (int i = 2, len = count * 2; i <= len; i+=2) {
+          if (!state.addPoint(pts[i], pts[i + 1])) {
+            if (!state.isFinite) {
+              return SPathConvexityType.kUnknown;
+            }
+            return _setComputedConvexity(SPathConvexityType.kConcave);
+          }
+      }
+    }
+
+    if (this._firstDirection == SPathDirection.kUnknown) {
+      if (state.firstDirection == SPathDirection.kUnknown
+          && !pathRef.getBounds().isEmpty) {
+        return _setComputedConvexity(state.reversals < 3 ?
+            SPathConvexityType.kConvex : SPathConvexityType.kConcave);
+      }
+      _firstDirection = state.firstDirection;
+    }
+    _setComputedConvexity(SPathConvexityType.kConvex);
+    return _convexityType;
   }
 
   /// Computes the bounding rectangle for this path.
@@ -1470,8 +1567,10 @@ bool _isSimple2dTransform(Float32List m) =>
 // m[1] - 2D rotation is simple
 // m[0] - scale x is simple
 
-double _lengthSquared(ui.Offset offset) {
+double _lengthSquaredOffset(ui.Offset offset) {
   final double dx = offset.dx;
   final double dy = offset.dy;
   return dx * dx + dy * dy;
 }
+
+double _lengthSquared(double dx, double dy) => dx * dx + dy * dy;

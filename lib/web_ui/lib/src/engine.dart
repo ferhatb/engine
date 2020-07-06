@@ -96,6 +96,7 @@ part 'engine/surface/opacity.dart';
 part 'engine/surface/painting.dart';
 part 'engine/surface/path/conic.dart';
 part 'engine/surface/path/cubic.dart';
+part 'engine/surface/path/op_builder.dart';
 part 'engine/surface/path/path.dart';
 part 'engine/surface/path/path_ref.dart';
 part 'engine/surface/path/path_to_svg.dart';

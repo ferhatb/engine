@@ -200,3 +200,196 @@ double polyEval4(double A, double B, double C, double D, double t) =>
 // checks and treats values as 0).
 double _interpolate(double startValue, double endValue, double t)
     => (startValue * (1 - t)) + endValue * t;
+
+double _dotProduct(double x0, double y0, double x1, double y1) {
+  return x0 * x1 + y0 * y1;
+}
+
+// Helper class for computing convexity for a single contour.
+//
+// Iteratively looks at angle (using cross product) between consecutive vectors
+// formed by path.
+class Convexicator {
+  static const int kValueNeverReturnedBySign = 2;
+
+  // Second point of contour start that forms a vector.
+  // Used to handle close operator to compute angle between last vector and
+  // first.
+  double firstVectorEndPointX;
+  double firstVectorEndPointY;
+
+  double priorX;
+  double priorY;
+
+  double lastX;
+  double lastY;
+
+  double currX;
+  double currY;
+
+  // Last vector to use to compute angle.
+  double lastVecX;
+  double lastVecY;
+
+  bool _isFinite = true;
+  int _firstDirection = SPathDirection.kUnknown;
+  int _reversals = 0;
+  /// SPathDirection of contour.
+  int get firstDirection => _firstDirection;
+
+  DirChange _expectedDirection = DirChange.kInvalid;
+
+  void setMovePt(double x, double y) {
+    currX = priorX = lastX = x;
+    currY = priorY = lastY = y;
+  }
+
+  bool addPoint(double x, double y) {
+    if (x == currX && y == currY) {
+      // Skip zero length vector.
+      return true;
+    }
+    currX = x;
+    currY = y;
+    final double vecX = currX - lastX;
+    final double vecY = currY - lastY;
+    if (priorX == lastX && priorY == lastY) {
+      // First non-zero vector.
+      lastVecX = vecX;
+      lastVecY = vecY;
+      firstVectorEndPointX = x;
+      firstVectorEndPointY = y;
+    } else if (!_addVector(vecX, vecY)) {
+        return false;
+    }
+    priorX = lastX;
+    priorY = lastY;
+    lastX = x;
+    lastY = y;
+    return true;
+  }
+
+  bool close() {
+    // Add another point from path closing point to end of first vector.
+    return addPoint(firstVectorEndPointX, firstVectorEndPointY);
+  }
+
+  bool get isFinite => _isFinite;
+
+  int get reversals => _reversals;
+
+  DirChange _directionChange(double curVecX, double curVecY) {
+    // Cross product = ||lastVec|| * ||curVec|| * sin(theta) * N
+    // sin(theta) angle between two vectors is positive for angles 0..180 and
+    // negative for greater, providing left or right direction.
+    double cross = lastVecX * curVecY - lastVecY * curVecX;
+    if (!cross.isFinite) {
+      return DirChange.kUnknown;
+    }
+    // Detect straight and backwards direction change.
+    // Instead of comparing absolute crossproduct size, compare
+    // largest component double+crossproduct.
+    final double smallest = math.min(curVecX, math.min(curVecY,
+        math.min(lastVecX, lastVecY)));
+    final double largest = math.max(math.max(curVecX, math.max(curVecY,
+      math.max(lastVecX, lastVecY))), -smallest);
+    if (_nearlyEqual(largest, largest + cross)) {
+      final double nearlyZeroSquared =
+          SPath.scalarNearlyZero * SPath.scalarNearlyZero;
+      if (_nearlyEqual(_lengthSquared(lastVecX, lastVecY), nearlyZeroSquared) ||
+          _nearlyEqual(_lengthSquared(curVecX, curVecY), nearlyZeroSquared)) {
+        // Length of either vector is smaller than tolerance to be able
+        // to compute direction.
+        return DirChange.kUnknown;
+      }
+      // The vectors are parallel, sign of dot product gives us direction.
+      // cosine is positive for straight -90 < Theta < 90
+      return _dotProduct(lastVecX, lastVecY, curVecX, curVecY) < 0
+          ? DirChange.kBackwards : DirChange.kStraight;
+    }
+    return cross > 0 ? DirChange.kRight : DirChange.kLeft;
+  }
+
+  bool _addVector(double curVecX, double curVecY) {
+    DirChange dir = _directionChange(curVecX, curVecY);
+    final bool isDirectionRight = dir == DirChange.kRight;
+    if (dir == DirChange.kLeft || isDirectionRight) {
+      if (_expectedDirection == DirChange.kInvalid) {
+        // First valid direction. From this point on expect always left.
+        _expectedDirection = dir;
+        _firstDirection = isDirectionRight ? SPathDirection.kCW :
+          SPathDirection.kCCW;
+      } else if (dir != _expectedDirection) {
+        _firstDirection = SPathDirection.kUnknown;
+        return false;
+      }
+      lastVecX = curVecX;
+      lastVecY = curVecY;
+    } else {
+      switch (dir) {
+        case DirChange.kBackwards:
+          // Allow path to reverse direction twice.
+          // Given path.moveTo(0,0) lineTo(1,1)
+          //   - First reversal: direction change formed by line (0,0 1,1),
+          //     line (1,1 0,0)
+          //   - Second reversal: direction change formed by line (1,1 0,0),
+          //     line (0,0 1,1)
+          lastVecX = curVecX;
+          lastVecY = curVecY;
+          return ++_reversals < 3;
+        case DirChange.kUnknown:
+          return _isFinite = false;
+      }
+    }
+    return true;
+  }
+
+  // Quick test to detect concave by looking at number of changes in direction
+  // of vectors formed by path points (excluding control points).
+  static int bySign(PathRef pathRef, int pointIndex, int numPoints) {
+    int lastPointIndex = pointIndex + numPoints;
+    int currentPoint = pointIndex++;
+    int firstPointIndex = currentPoint;
+    int signChangeCountX = 0;
+    int signChangeCountY = 0;
+    int lastSx = kValueNeverReturnedBySign;
+    int lastSy = kValueNeverReturnedBySign;
+    for (int outerLoop = 0; outerLoop < 2; ++outerLoop ) {
+      while (pointIndex != lastPointIndex) {
+        double vecX = pathRef._fPoints[pointIndex * 2] - pathRef._fPoints[currentPoint * 2];
+        double vecY = pathRef._fPoints[pointIndex * 2 + 1] - pathRef._fPoints[currentPoint * 2 + 1];
+        if (!(vecX == 0 && vecY == 0)) {
+          // Give up if vector construction failed.
+          // give up if vector construction failed
+          if (!(vecX.isFinite && vecY.isFinite)) {
+            return SPathConvexityType.kUnknown;
+          }
+          int sx = vecX < 0 ? 1 : 0;
+          int sy = vecY < 0 ? 1 : 0;
+          signChangeCountX += (sx != lastSx) ? 1 : 0;
+          signChangeCountY += (sy != lastSy) ? 1 : 0;
+          if (signChangeCountX > 3 || signChangeCountY > 3) {
+            return SPathConvexityType.kConcave;
+          }
+          lastSx = sx;
+          lastSy = sy;
+        }
+        currentPoint = pointIndex++;
+        if (outerLoop != 0) {
+          break;
+        }
+      }
+      pointIndex = firstPointIndex;
+    }
+    return SPathConvexityType.kConvex;
+  }
+}
+
+enum DirChange {
+  kUnknown,
+  kLeft,
+  kRight,
+  kStraight,
+  kBackwards, // if double back, allow simple lines to be convex
+  kInvalid
+}
