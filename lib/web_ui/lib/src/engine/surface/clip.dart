@@ -322,7 +322,7 @@ class PersistedPhysicalShape extends PersistedContainerSurface
         oldSurface.shadowColor != shadowColor) {
       _applyShadow();
     }
-    if (oldSurface.path != path) {
+    if (!oldSurface.path.pathRef.equals(path.pathRef)) {
       oldSurface._clipElement?.remove();
       domRenderer.setElementStyle(rootElement!, 'clip-path', '');
       domRenderer.setElementStyle(rootElement!, '-webkit-clip-path', '');
