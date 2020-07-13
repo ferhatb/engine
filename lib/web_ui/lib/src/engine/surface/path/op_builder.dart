@@ -552,51 +552,71 @@ class OpEdgeBuilder {
     fSecondHalf = _preFetch();
   }
 
+
+
   int _preFetch() {
-//    if (!path.isFinite) {
-//      fUnparseable = true;
-//      return 0;
-//    }
-//    final PathRefIterator iter = PathRefIterator(path.pathRef);
-//    int verb = 0;
-//    final Float32List points = Float32List(PathRefIterator.kMaxBufferSize);
-//    bool lastCurve = false;
-//    double curveStartX = 0;
-//    double curveStartY = 0;
-//    while ((verb = iter.next(points)) != SPath.kDoneVerb) {
-//      switch (verb) {
-//        case SPath.kMoveVerb:
-//          double x = points[0];
-//          double y = points[1];
-//          if (!allowOpenContours && lastCurve) {
-//            _closeContour(x, y, curveStartX, curveStartY);
-//          }
-//          x = _forceSmallToZero(x);
-//          y = _forceSmallToZero(y);
-//          int pointIndex = _activePath.growForVerb(verb, 0);
-//          _activePath.setPoint(pointIndex, x, y);
-//          curveStartX = x;
-//          curveStartY = y;
-//          break;
-//        case SPath.kLineVerb:
-//          double x = _forceSmallToZero(points[2]);
-//          double y = _forceSmallToZero(points[3]);
-//
-//          break;
-//        case SPath.kCubicVerb:
-//          break;
-//        case SPath.kQuadVerb:
-//          break;
-//        case SPath.kConicVerb:
-//          break;
-//        case SPath.kCloseVerb:
-//          break;
-//        default:
-//          throw UnimplementedError('Unknown path verb $verb');
-//      }
-//    }
+    if (!path.isFinite) {
+      fUnparseable = true;
+      return 0;
+    }
+    final PathRefIterator iter = PathRefIterator(path.pathRef);
+    int verb = 0;
+    final Float32List points = Float32List(PathRefIterator.kMaxBufferSize);
+    bool lastCurve = false;
+    double curveStartX = 0;
+    double curveStartY = 0;
+    while ((verb = iter.next(points)) != SPath.kDoneVerb) {
+      switch (verb) {
+        case SPath.kMoveVerb:
+          double x = points[0];
+          double y = points[1];
+          if (!allowOpenContours && lastCurve) {
+            _closeContour(x, y, curveStartX, curveStartY);
+          }
+          x = _forceSmallToZero(x);
+          y = _forceSmallToZero(y);
+          int pointIndex = _activePath.growForVerb(verb, 0);
+          _activePath.setPoint(pointIndex, x, y);
+          curveStartX = x;
+          curveStartY = y;
+          break;
+        case SPath.kLineVerb:
+          double x = _forceSmallToZero(points[2]);
+          double y = _forceSmallToZero(points[3]);
+
+          break;
+        case SPath.kCubicVerb:
+          break;
+        case SPath.kQuadVerb:
+          break;
+        case SPath.kConicVerb:
+          break;
+        case SPath.kCloseVerb:
+          break;
+        default:
+          throw UnimplementedError('Unknown path verb $verb');
+      }
+    }
     throw UnimplementedError('');
   }
+
+  void _closeContour(double curveEndX, double curveEndY, double curveStartX, double curveStartY) {
+    if (!SkDPoint::ApproximatelyEqual(curveEnd, curveStart)) {
+        *fPathVerbs.append() = SkPath::kLine_Verb;
+        *fPathPts.append() = curveStart;
+    } else {
+        int verbCount = fPathVerbs.count();
+        int ptsCount = fPathPts.count();
+        if (SkPath::kLine_Verb == fPathVerbs[verbCount - 1]
+                && fPathPts[ptsCount - 2] == curveStart) {
+            fPathVerbs.pop();
+            fPathPts.pop();
+        } else {
+            fPathPts[ptsCount - 1] = curveStart;
+        }
+    }
+    *fPathVerbs.append() = SkPath::kClose_Verb;
+}
 
   bool finish() {
     throw UnimplementedError('');
