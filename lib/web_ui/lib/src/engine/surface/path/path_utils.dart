@@ -93,6 +93,17 @@ class SPathSegmentState {
   static const int kAfterPrimitive = 2;
 }
 
+class SPathFillType {
+  /// Specifies that "inside" is computed by a non-zero sum of signed edge crossings.
+  static const int kWinding = 0;
+  /// Specifies that "inside" is computed by an odd number of edge crossings.
+  static const int kEvenOdd = 1;
+  /// Same as Winding, but draws outside of the path, rather than inside.
+  static const int kInverseWinding = 2;
+  /// Same as EvenOdd, but draws outside of the path, rather than inside.
+  static const int kInverseEvenOdd = 3;
+}
+
 /// Quadratic roots. See Numerical Recipes in C.
 ///
 ///    Q = -1/2 (B + sign(B) sqrt[B*B - 4*A*C])
@@ -409,4 +420,12 @@ enum DirChange {
   kStraight,
   kBackwards, // if double back, allow simple lines to be convex
   kInvalid
+}
+
+// Return true if all components are finite.
+bool isPointFinite(double x, double y) {
+  double accum = 0;
+  accum *= x;
+  accum *= y;
+  return !accum.isNaN;
 }

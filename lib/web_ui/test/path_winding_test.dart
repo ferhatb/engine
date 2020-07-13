@@ -445,7 +445,3 @@ void setFromString(SurfacePath path, String value) {
   }
 }
 
-// Scalar max is based on 32 bit float since [PathRef] stores values in
-// Float32List.
-const double kScalarMax = 3.402823466e+38;
-const double kScalarMin = -kScalarMax;

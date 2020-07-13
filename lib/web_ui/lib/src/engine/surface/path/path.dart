@@ -25,16 +25,19 @@ class SurfacePath implements ui.Path {
   static const int kInitialLastMoveToIndexValue = -1;
 
   PathRef pathRef;
-  ui.PathFillType _fillType = ui.PathFillType.nonZero;
-  // Skia supports inverse winding as part of path fill type.
-  // For Flutter inverse is always false.
-  bool _isInverseFillType = false;
+  // To be able to support path operations, we support inverse fill types
+  // as well as Flutter PathFillType. Internally we store SPathFillType.
+  int _fillType = SPathFillType.kWinding;
   // Store point index + 1 of last moveTo instruction.
   // If contour has been closed or path is in initial state, the value is
   // negated.
   int fLastMoveToIndex = kInitialLastMoveToIndexValue;
   int _convexityType = SPathConvexityType.kUnknown;
   int _firstDirection = SPathDirection.kUnknown;
+  // Flutter does not support inverse fill types yet.
+  // Returns true if path fill is on outside the path.
+  bool get isInverseFillType => _fillType == SPathFillType.kInverseWinding ||
+      _fillType == SPathFillType.kInverseEvenOdd;
 
   SurfacePath() : pathRef = PathRef() {
     _resetFields();
@@ -42,7 +45,7 @@ class SurfacePath implements ui.Path {
 
   void _resetFields() {
     fLastMoveToIndex = kInitialLastMoveToIndexValue;
-    _fillType = ui.PathFillType.nonZero;
+    _fillType = SPathFillType.kWinding;
     _resetAfterEdit();
   }
 
@@ -79,11 +82,13 @@ class SurfacePath implements ui.Path {
   ///
   /// Defaults to the non-zero winding rule, [PathFillType.nonZero].
   @override
-  ui.PathFillType get fillType => _fillType;
+  ui.PathFillType get fillType => (_fillType & 1) == 0
+      ? ui.PathFillType.nonZero : ui.PathFillType.evenOdd;
 
   @override
   set fillType(ui.PathFillType value) {
-    _fillType = value;
+    _fillType = value == ui.PathFillType.nonZero ? SPathFillType.kWinding :
+        SPathFillType.kEvenOdd;
   }
 
   /// Returns true if [SurfacePath] contain equal verbs and equal weights.
@@ -1188,7 +1193,7 @@ class SurfacePath implements ui.Path {
   @override
   bool contains(ui.Offset point) {
     assert(offsetIsValid(point));
-    bool isInverse = _isInverseFillType;
+    bool isInverse = isInverseFillType;
     if (pathRef.isEmpty) {
       return isInverse;
     }
