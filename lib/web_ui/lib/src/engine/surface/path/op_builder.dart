@@ -540,9 +540,26 @@ enum OpPhase {
 /// If [allowOpenContours] is false, it appends a close verb for every moveTo
 /// verb and if last instruction is a curve.
 class OpEdgeBuilder {
+
   OpEdgeBuilder(this.path, this.globalState, {this.allowOpenContours = false}) {
     init();
   }
+
+  final SurfacePath path;
+  final OpGlobalState globalState;
+  final OpContourBuilder contourBuilder = OpContourBuilder();
+  OpContour? fContoursHead;
+  List<int> fXorMask = [SPathOpsMask.kNo_Path, SPathOpsMask.kNo_Path];
+
+  // Sanitized path result from preFetch step.
+  // Used as source data for walk phase.
+  PathRef _activePath = PathRef();
+
+  // Verbs end index set by preFetch.
+  int? fSecondHalf;
+  bool fOperand = false;
+  bool allowOpenContours;
+  bool fUnparseable = false;
 
   void init() {
     fOperand = false;
@@ -551,8 +568,6 @@ class OpEdgeBuilder {
     fUnparseable = false;
     fSecondHalf = _preFetch();
   }
-
-
 
   int _preFetch() {
     if (!path.isFinite) {
@@ -579,72 +594,130 @@ class OpEdgeBuilder {
           _activePath.setPoint(pointIndex, x, y);
           curveStartX = x;
           curveStartY = y;
-          break;
+          continue;
         case SPath.kLineVerb:
-          double x = _forceSmallToZero(points[2]);
-          double y = _forceSmallToZero(points[3]);
-
-          break;
-        case SPath.kCubicVerb:
+          double endX = points[2] = _forceSmallToZero(points[2]);
+          double endY = points[3] = _forceSmallToZero(points[3]);
+          if (approximatelyEqual(points[0], points[1], endX, endY)) {
+            int lastVerb = _activePath.atVerb(_activePath.countVerbs() - 1);
+            if (lastVerb != SPathVerb.kLine && lastVerb != SPathVerb.kMove) {
+              // Readjust last curve point to end of line.
+              int pointCount = _activePath.countPoints();
+              _activePath.setPoint(pointCount - 1, endX, endY);
+            }
+            // Skip degenerate points.
+            continue;
+          }
           break;
         case SPath.kQuadVerb:
+          points[2] = _forceSmallToZero(points[2]);
+          points[3] = _forceSmallToZero(points[3]);
+          points[4] = _forceSmallToZero(points[4]);
+          points[5] = _forceSmallToZero(points[5]);
+          verb = ReduceOrder.quad(points, points);
+          if (verb == SPathVerb.kMove) {
+            // Quadratic curve was reduced to a single point, skip.
+            continue;
+          }
           break;
         case SPath.kConicVerb:
+          points[2] = _forceSmallToZero(points[2]);
+          points[3] = _forceSmallToZero(points[3]);
+          points[4] = _forceSmallToZero(points[4]);
+          points[5] = _forceSmallToZero(points[5]);
+          verb = ReduceOrder.quad(points, points);
+          // If point skip. If conic weight is 1, just add quad,
+          // otherwise conic.
+          if (verb == SPathVerb.kQuad && iter.conicWeight != 1.0) {
+            verb = SPathVerb.kConic;
+          } else if (verb == SPathVerb.kMove) {
+            // Skip degenerate point.
+            continue;
+          }
+          break;
+        case SPath.kCubicVerb:
+          points[2] = _forceSmallToZero(points[2]);
+          points[3] = _forceSmallToZero(points[3]);
+          points[4] = _forceSmallToZero(points[4]);
+          points[5] = _forceSmallToZero(points[5]);
+          points[6] = _forceSmallToZero(points[6]);
+          points[7] = _forceSmallToZero(points[7]);
+          verb = ReduceOrder.cubic(points);
+          if (verb == SPathVerb.kMove) {
+            continue;  // skip degenerate points
+          }
           break;
         case SPath.kCloseVerb:
-          break;
+          _closeContour(points[0], points[1], curveStartX, curveStartY);
+          lastCurve = false;
+          continue;
+        case SPath.kDoneVerb:
         default:
-          throw UnimplementedError('Unknown path verb $verb');
+          continue;
       }
+      // Add current verb and points.
+      int pointIndex = _activePath.growForVerb(verb, verb == SPathVerb.kConic ? iter.conicWeight : 0);
+      int pointCount = pathOpsVerbToPoints(verb);
+      for (int i = 0; i < pointCount; i++) {
+        _activePath.setPoint(pointIndex + i,
+            points[(i + 1) * 2], points[(i + 1) * 2 + 1]);
+      }
+      // Assign end point to first point to use for [_closeContour] inside
+      // iterator.
+      points[0] = points[pointCount * 2];
+      points[1] = points[pointCount * 2 + 1];
+      lastCurve = true;
     }
-    throw UnimplementedError('');
+    if (!allowOpenContours && lastCurve) {
+      _closeContour(points[0], points[1], curveStartX, curveStartY);
+    }
+    return _activePath.countVerbs();
   }
 
   void _closeContour(double curveEndX, double curveEndY, double curveStartX, double curveStartY) {
-    if (!SkDPoint::ApproximatelyEqual(curveEnd, curveStart)) {
-        *fPathVerbs.append() = SkPath::kLine_Verb;
-        *fPathPts.append() = curveStart;
+    if (!approximatelyEqual(curveEndX, curveEndY, curveStartX, curveStartY)) {
+      int pointIndex = _activePath.growForVerb(SPathVerb.kLine, 0);
+      _activePath.setPoint(pointIndex, curveStartX, curveStartY);
     } else {
-        int verbCount = fPathVerbs.count();
-        int ptsCount = fPathPts.count();
-        if (SkPath::kLine_Verb == fPathVerbs[verbCount - 1]
-                && fPathPts[ptsCount - 2] == curveStart) {
-            fPathVerbs.pop();
-            fPathPts.pop();
+      int lastVerb = _activePath.atVerb(_activePath.countVerbs() - 1);
+      if (SPathVerb.kLine == lastVerb) {
+        int pointCount = _activePath.countPoints();
+        if (_activePath.atPointX(pointCount - 2) == curveStartX &&
+            _activePath.atPointY(pointCount - 2) == curveStartY) {
+          // Remove line to command since it starts at closed curve start.
+          _activePath.popVerb();
+          _activePath.popPoint();
         } else {
-            fPathPts[ptsCount - 1] = curveStart;
+          // Update lineTo to close contour.
+          _activePath.setPoint(pointCount - 1, curveStartX, curveStartY);
         }
+      }
     }
-    *fPathVerbs.append() = SkPath::kClose_Verb;
-}
-
-  bool finish() {
-    throw UnimplementedError('');
+    _activePath.growForVerb(SPathVerb.kClose, 0);
   }
 
-  SurfacePath path;
-  OpGlobalState globalState;
-  final OpContourBuilder contourBuilder = OpContourBuilder();
-  OpContour? fContoursHead;
-  List<int> fXorMask = [SPathOpsMask.kNo_Path, SPathOpsMask.kNo_Path];
+  bool finish() {
+    fOperand = false;
+    if (fUnparseable || !walk()) {
+      return false;
+    }
+    complete();
+    OpContour? contour = fContourBuilder.contour;
+    if (contour!= null && contour.count == 0) {
+      fContoursHead.remove(contour);
+    }
+    return true;
+  }
 
-  // Sanitized path result from preFetch step.
-  // Used as source data for walk phase.
-  PathRef _activePath = PathRef();
-
-  // Verbs end index set by preFetch.
-  int? fSecondHalf;
-  bool fOperand = false;
-  bool allowOpenContours;
-  bool fUnparseable = false;
+  void complete() {
+    fContourBuilder.flush();
+    OpContour? contour = fContourBuilder.contour;
+    if (contour != null && contour.count != 0) {
+      contour.complete();
+      fContourBuilder.setContour(null);
+    }
+  }
 }
 
 double _forceSmallToZero(double value) =>
     value.abs() < kFltEpsilonOrderableErr ? 0 : value;
-
-class OpContourBuilder {
-
-}
-
-class OpContour {
-}

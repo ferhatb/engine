@@ -22,6 +22,8 @@ class SPathVerb {
   static const int kClose = 6; // 0 points
 }
 
+int pathOpsVerbToPoints(int verb) => verb - ((verb + 1) >> 2);
+
 class SPath {
   static const int kMoveVerb = SPathVerb.kMove;
   static const int kLineVerb = SPathVerb.kLine;

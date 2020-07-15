@@ -124,8 +124,32 @@ class PathRef {
     return ui.Offset(_fPoints[index * 2], _fPoints[index * 2 + 1]);
   }
 
+  double atPointX(int index) {
+    return _fPoints[index * 2];
+  }
+
+  double atPointY(int index) {
+    return _fPoints[index * 2 + 1];
+  }
+
   double atWeight(int index) {
     return _conicWeights![index];
+  }
+
+  /// Removes last verb.
+  void popVerb() {
+    if (countVerbs() == 0) {
+      return;
+    }
+    --_fVerbsLength;
+  }
+
+  /// Removes last point.
+  void popPoint() {
+    if (countPoints() == 0) {
+      return;
+    }
+    --_fPointsLength;
   }
 
   ///  Returns true if all of the points in this path are finite, meaning

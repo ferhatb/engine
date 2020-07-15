@@ -189,6 +189,11 @@ bool almostDequalUlpsDouble(double a, double b) {
   return (a - b).abs() / math.max(absA, absB) < kDblEpsilonSubdivideErr;
 }
 
+/// Checks if [x] is absolutely smaller than y scaled by epsilon.
+bool approximatelyZeroWhenComparedTo(double x, double y) {
+  return x == 0 || x.abs() < (y * kFltEpsilon).abs();
+}
+
 const double kFltEpsilon = 1.19209290E-07; // == 1 / (2 ^ 23)
 const double kDblEpsilon = 2.22045e-16;
 const double kFltEpsilonCubed = kFltEpsilon * kFltEpsilon * kFltEpsilon;
