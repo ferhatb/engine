@@ -84,5 +84,10 @@ void main() {
       b = twosComplimentAsFloat(aBits + 16);
       expect(approximatelyEqual(5.0, a, 5.0, b), false);
     });
+
+    test('Double roughlyEqualUlps', () {
+      expect(roughlyEqualUlps(5.0402503619650929e-005, 4.3178054475078825e-005),
+          true);
+    });
   });
 }

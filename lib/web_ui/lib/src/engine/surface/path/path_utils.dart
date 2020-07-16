@@ -167,6 +167,43 @@ class _QuadRoots {
   }
 }
 
+// Returns t at maximum curvature of quadratic curve.
+//
+//  F(t)    = a (1 - t) ^ 2 + 2 b t (1 - t) + c t ^ 2
+//  F'(t)   = 2 (b - a) + 2 (a - 2b + c) t
+//  F''(t)  = 2 (a - 2b + c)
+//
+//  A = 2 (b - a)
+//  B = 2 (a - 2b + c)
+//
+//  Maximum curvature for a quadratic means solving
+//  Fx' Fx'' + Fy' Fy'' = 0
+//
+//  t = - (Ax Bx + Ay By) / (Bx ^ 2 + By ^ 2)
+//
+double _findQuadMaxCurvature(Float32List points) {
+  final double ax = points[2] - points[0];
+  final double ay = points[3] - points[1];
+  final double bx = points[0] - points[2] - points[2] + points[4];
+  final double by = points[1] - points[3] - points[3] + points[5];
+
+  double numer = -(ax * bx + ay * by);
+  double denom = bx * bx + by * by;
+  if (denom < 0) {
+    numer = -numer;
+    denom = -denom;
+  }
+  if (numer <= 0) {
+    return 0;
+  }
+  if (numer >= denom) {  // Also catches denom=0.
+    return 1;
+  }
+  final double t = numer / denom;
+  assert((0 <= t && t < 1) || t.isNaN);
+  return t;
+}
+
 double? _validUnitDivide(double numer, double denom) {
   if (numer < 0) {
     numer = -numer;
