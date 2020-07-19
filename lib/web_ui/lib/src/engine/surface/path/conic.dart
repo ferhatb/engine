@@ -18,6 +18,22 @@ class Conic {
 
   Conic(this.p0x, this.p0y, this.p1x, this.p1y, this.p2x, this.p2y, this.fW);
 
+  factory Conic.fromPoints(Float32List points, double fW) {
+    return Conic(points[0], points[1], points[2], points[3], points[4],
+        points[5], fW);
+  }
+
+  Float32List toPoints() {
+    final Float32List points = Float32List(6);
+    points[0] = p0x;
+    points[1] = p0y;
+    points[2] = p1x;
+    points[3] = p1y;
+    points[4] = p2x;
+    points[5] = p2y;
+    return points;
+  }
+
   /// Returns array of points for the approximation of the conic as quad(s).
   ///
   /// First offset is start Point. Each pair of offsets after are quadratic

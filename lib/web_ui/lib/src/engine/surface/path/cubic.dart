@@ -4,6 +4,290 @@
 
 part of engine;
 
+/// Cubic bezier curve using double precicion.
+class Cubic {
+  Cubic(this.p0x, this.p0y, this.p1x, this.p1y, this.p2x, this.p2y,
+      this.p3x, this.p3y);
+
+  double p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y;
+
+  factory Cubic.fromPoints(Float32List points) {
+    return Cubic(points[0], points[1], points[2], points[3], points[4],
+        points[5], points[6], points[7]);
+  }
+
+  Float32List toPoints() {
+    final Float32List points = Float32List(8);
+    points[0] = p0x;
+    points[1] = p0y;
+    points[2] = p1x;
+    points[3] = p1y;
+    points[4] = p2x;
+    points[5] = p2y;
+    points[6] = p3x;
+    points[7] = p3y;
+    return points;
+  }
+
+  /// True if curve is monotonically increasing or decreasing in x.
+  bool monotonicInX() => preciselyBetween(p0x, p1x, p3x)
+        && preciselyBetween(p0x, p2x, p3x);
+
+  /// True if curve is monotonically increasing or decreasing in y.
+  bool monotonicInY() => preciselyBetween(p0y, p1y, p3y)
+      && preciselyBetween(p0y, p2y, p3y);
+
+  /// Breaks up the curve into simpler cubics that have derivates at t within
+  /// numerical precision required for intersection and ordering.
+  List<double> complexBreak() {
+    if (monotonicInX() && monotonicInY()) {
+      // No need to split curve since it is monotonic on both axis.
+      return const [];
+    }
+    final Float32List points = toPoints();
+    CubicClassifier classifier = CubicClassifier.classify(points);
+    final int cubicType = classifier.cubicType;
+    final double t0 = classifier.t0;
+    final double t1 = classifier.t1;
+    final double s0 = classifier.s0;
+    final double s1 = classifier.s0;
+    if (cubicType == CubicType.kLoop) {
+      if (roughlyBetween(0, t0, s0) && roughlyBetween(0, t1, s1)) {
+        final double t0prime = (t0 * s1 + t1 * s0) / (2 * s0 * s1);
+        return t0prime > 0 && t0prime < 1 ? [t0prime] : const [];
+      }
+    }
+    if (cubicType == CubicType.kQuadratic || cubicType == CubicType.kLineOrPoint) {
+      return const [];
+    }
+    // loop, serpentine, local cusp or cusp at infinity.
+    List<double> inflectionTs = [];
+    int infTCount = findInflections(inflectionTs);
+    List<double> maxCurvature = [];
+    int roots = findMaxCurvature(maxCurvature);
+
+    if (infTCount == 2) {
+      for (int index = 0; index < roots; ++index) {
+          if (SPath.between(inflectionTs[0], maxCurvature[index], inflectionTs[1])) {
+            double t0 = maxCurvature[index];
+            return (t0 > 0 && t0 < 1) ? [t0] : const[];
+          }
+      }
+    } else {
+      int resultCount = 0;
+      double precision = calcPrecision() * 2;
+      List<double> t = [];
+      for (int index = 0; index < roots; ++index) {
+        double testT = maxCurvature[index];
+        if (0 >= testT || testT >= 1) {
+            continue;
+          }
+          // don't call dxdyAtT since we want (0,0) results
+          double dPtx = derivativeAtT(p0x, p1x, p2x, p3x, testT);
+          double dPty = derivativeAtT(p0y, p1y, p2y, p3y, testT);
+          double dPtLen = math.sqrt(_lengthSquared(dPtx, dPty));
+          if (dPtLen < precision) {
+            t.add(testT);
+          }
+      }
+      if (t.isEmpty && infTCount == 1) {
+        double inflT = inflectionTs[0];
+        if (inflT > 0 && inflT < 1) {
+          t.add(inflT);
+        }
+      }
+      return t;
+    }
+    return const [];
+  }
+
+  static const double gPrecisionUnit = 256;
+
+  /// Get the rough scale of the cubic.
+  ///
+  /// Used to determine if curvature is extreme
+  double calcPrecision() =>
+    (math.sqrt(_lengthSquared(p1x - p0x, p1y - p0y))
+      + math.sqrt(_lengthSquared(p2x - p1x, p2y - p1y))
+      + math.sqrt(_lengthSquared(p3x - p2x, p3y - p2y))) / gPrecisionUnit;
+
+  int findInflections(List<double> target) {
+    final double ax = p1x - p0x;
+    final double ay = p1y - p0y;
+    final double bx = p2x - 2 * p1x + p0x;
+    final double by = p2y - 2 * p1y + p0y;
+    final double cx = p3x + 3 * (p1x - p2x) - p0x;
+    final double cy = p3y + 3 * (p1y - p2y) - p0y;
+    return Quad.rootsValidT(bx * cy - by * cx, ax * cy - ay * cx, ax * by - ay * bx, target);
+  }
+
+  /// Looking for F' dot F'' == 0
+  ///
+  /// A = b - a
+  /// B = c - 2b + a
+  /// C = d - 3c + 3b - a
+  ///
+  /// F' = 3Ct^2 + 6Bt + 3A
+  /// F'' = 6Ct + 6B
+  ///
+  /// F' dot F'' -> CCt^3 + 3BCt^2 + (2BB + CA)t + AB
+  int findMaxCurvature(List<double> curvature) {
+    final double ax = p1x - p0x;
+    final double ay = p1y - p0y;
+    final double bx = p2x - 2 * p1x + p0x;
+    final double by = p2y - 2 * p1y + p0y;
+    final double cx = p3x + 3 * (p1x - p2x) - p0x;
+    final double cy = p3y + 3 * (p1y - p2y) - p0y;
+    double coeff0x = cx * cx;
+    double coeff1x = 3 * bx * cx;
+    double coeff2x = 2 * bx * bx + cx * ax;
+    double coeff3x = ax * bx;
+    double coeff0y = cy * cy;
+    double coeff1y = 3 * by * cy;
+    double coeff2y = 2 * by * by + cy * ay;
+    double coeff3y = ay * by;
+    return rootsValidT(coeff0x + coeff0y, coeff1x + coeff1y,
+        coeff2x + coeff2y, coeff3x + coeff3y, curvature);
+  }
+
+  /// Returns valid roots for cubic.
+  ///
+  /// Numeric Solutions, 5.6.
+  static int rootsValidT(double A, double B, double C, double D, List<double> t) {
+    List<double> s = [];
+    int realRoots = rootsReal(A, B, C, D, s);
+    int foundRoots = Quad.addValidTs(s, realRoots, t);
+    // For roots in the range -0.00005..0 , make sure t=0 is in result set.
+    // For roots in the range 1..1.00005 , make sure t=1 is in result set.
+    for (int index = 0; index < realRoots; ++index) {
+      double tValue = s[index];
+      if (!approximatelyOneOrLess(tValue) && SPath.between(1, tValue, 1.00005)) {
+        bool isValid = true;
+        for (int idx2 = 0; idx2 < foundRoots; ++idx2) {
+          if (approximatelyEqualT(t[idx2], 1)) {
+            isValid = false;
+            break;
+          }
+        }
+        if (isValid) {
+          assert(foundRoots < 3);
+          foundRoots++;
+          t.add(1);
+        }
+      } else if (!approximatelyZeroOrMore(tValue) && SPath.between(-0.00005, tValue, 0)) {
+        bool isValid = true;
+        for (int idx2 = 0; idx2 < foundRoots; ++idx2) {
+          if (approximatelyEqualT(t[idx2], 0)) {
+            isValid = false;
+          }
+        }
+        if (isValid) {
+          assert(foundRoots < 3);
+          foundRoots++;
+          t.add(0);
+        }
+      }
+    }
+    return foundRoots;
+  }
+
+  // from http://www.cs.sunysb.edu/~qin/courses/geometry/4.pdf
+  // c(t)  = a(1-t)³ + 3bt(1-t)² + 3c(1-t)² + dt³
+  // c'(t) = -3a(1-t)² + 3b((1-t)² - 2t(1-t)) + 3c(2t(1-t) - t²) + 3dt²
+  //       = 3(b-a)(1-t)² + 6(c-b)t(1-t) + 3(d-c)t²
+  static double derivativeAtT(double a, double b, double c, double d, double t) {
+    final double one_t = 1 - t;
+    return 3 * ((b - a) * one_t * one_t + 2 * (c - b) * t * one_t + (d - c) * t * t);
+  }
+
+  /// Returns real roots of cubic.
+  static int rootsReal(double A, double B, double C, double D, List<double> target) {
+    if (approximatelyZero(A)
+            && approximatelyZeroWhenComparedTo(A, B)
+            && approximatelyZeroWhenComparedTo(A, C)
+            && approximatelyZeroWhenComparedTo(A, D)) {  // we're just a quadratic
+      // Simply a quadratic.
+      return Quad.rootsReal(B, C, D, target);
+    }
+    if (approximatelyZeroWhenComparedTo(D, A)
+            && approximatelyZeroWhenComparedTo(D, B)
+            && approximatelyZeroWhenComparedTo(D, C)) {
+      // One of the roots is zero.
+      int count = Quad.rootsReal(A, B, C, target);
+      for (int i = 0; i < count; ++i) {
+        if (approximatelyZero(target[i])) {
+          return count;
+        }
+      }
+      count++;
+      target.add(0);
+      return count;
+    }
+    if (approximatelyZero(A + B + C + D)) {
+      // 1 is one root.
+      int count = Quad.rootsReal(A, A + B, -D, target);
+      for (int i = 0; i < count; ++i) {
+        if (almostDequalUlps(target[i], 1)) {
+          return count;
+        }
+      }
+      count++;
+      target.add(1);
+      return count;
+    }
+    final double invA = 1 / A;
+    double a = B * invA;
+    double b = C * invA;
+    double c = D * invA;
+    
+    double a2 = a * a;
+    double Q = (a2 - b * 3) / 9;
+    double R = (2 * a2 * a - 9 * a * b + 27 * c) / 54;
+    double R2 = R * R;
+    double Q3 = Q * Q * Q;
+    double R2MinusQ3 = R2 - Q3;
+    double adiv3 = a / 3;
+    double r;
+    if (R2MinusQ3 < 0) {   // we have 3 real roots
+      // the divide/root can, due to finite precisions, be slightly outside of -1...1
+      double theta = math.acos((R / math.sqrt(Q3)).clamp(-1.0, 1.0));
+      double neg2RootQ = -2 * math.sqrt(Q);
+
+      r = neg2RootQ * math.cos(theta / 3) - adiv3;
+      target.add(r);
+
+      r = neg2RootQ * math.cos((theta + 2 * math.pi) / 3) - adiv3;
+      if (!almostDequalUlps(target[0], r)) {
+        target.add(r);
+      }
+      r = neg2RootQ * math.cos((theta - 2 * math.pi) / 3) - adiv3;
+      if (!almostDequalUlps(target[0], r) && (target.length == 1
+          || !almostDequalUlps(target[1], r))) {
+          target.add(r);
+      }
+    } else {  // we have 1 real root
+        double sqrtR2MinusQ3 = math.sqrt(R2MinusQ3);
+        double A = R.abs() + sqrtR2MinusQ3;
+        A = cubeRoot(A);
+        if (R > 0) {
+            A = -A;
+        }
+        if (A != 0) {
+            A += Q / A;
+        }
+        r = A - adiv3;
+        target.add(r);
+        if (almostDequalUlps(R2, Q3)) {
+            r = -A / 2 - adiv3;
+            if (!almostDequalUlps(target[0], r)) {
+                target.add(r);
+            }
+        }
+    }
+    return target.length;
+  }
+}
+
 /// Chops cubic at Y extrema points and writes result to [dest].
 ///
 /// [points] and [dest] are allowed to share underlying storage as long.

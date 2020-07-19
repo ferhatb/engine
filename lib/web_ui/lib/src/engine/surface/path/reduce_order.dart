@@ -140,6 +140,89 @@ class Quad {
     largest = math.max(largest, -tiniest);
     return approximatelyZeroWhenComparedTo(distance, largest);
   }
+
+  /// Returns sorted list of t values for roots.
+  static int rootsValidT(double A, double B, double C, List<double> t) {
+    List<double> s = [];
+    int realRoots = rootsReal(A, B, C, s);
+    int foundRoots = addValidTs(s, realRoots, t);
+    return foundRoots;
+  }
+
+  /// Numeric Solutions (5.6) suggests to solve the quadratic by computing
+  ///   Q = -1/2(B + sgn(B)Sqrt(B^2 - 4 A C))
+  ///   and using the roots
+  ///   t1 = Q / A
+  ///   t2 = C / Q
+  ///
+  /// this does not discard real roots <= 0 or >= 1 (use [addValidTs]).
+  static int rootsReal(double a, double b, double c, List<double> s) {
+    if (a == 0) {
+      return _handleZero(b, c, s);
+    }
+    final double p = b / (2 * a);
+    final double q = c / a;
+    if (approximatelyZero(a) && (approximatelyZeroInverse(p) ||
+        approximatelyZeroInverse(q))) {
+      return _handleZero(b, c, s);
+    }
+    // Normal form: x^2 + px + q = 0.
+    final double p2 = p * p;
+    if (!almostDequalUlps(p2, q) && p2 < q) {
+      return 0;
+    }
+    double sqrtD = 0;
+    if (p2 > q) {
+      sqrtD = math.sqrt(p2 - q);
+    }
+    final double root0 = sqrtD - p;
+    final double root1 = -sqrtD - p;
+    s.add(root0);
+    if (almostDequalUlps(s[0], s[1])) {
+      return 1;
+    } else {
+      s.add(root1);
+      return 2;
+    }
+  }
+
+  /// Compute single root for a = 0.
+  static int _handleZero(double b, double c, List<double> s) {
+    if (approximatelyZero(b)) {
+      s.add(0);
+      return c == 0 ? 1 : 0;
+    }
+    s.add(-c / b);
+    return 1;
+  }
+
+  /// Filters a source list of T values to the range 0 < t < 1 and
+  /// de-duplicates t values that are approximately equal.
+  static int addValidTs(List<double> source, int sourceCount, List<double> target) {
+    int foundRoots = 0;
+    for (int index = 0; index < sourceCount; ++index) {
+      double tValue = source[index];
+      if (approximatelyZeroOrMore(tValue) && approximatelyOneOrLess(tValue)) {
+        if (approximatelyLessThanZero(tValue)) {
+          tValue = 0;
+        } else if (approximatelyGreaterThanOne(tValue)) {
+          tValue = 1;
+        }
+        bool alreadyAdded = false;
+        for (int idx2 = 0; idx2 < foundRoots; ++idx2) {
+          if (approximatelyEqualT(target[idx2], tValue)) {
+            alreadyAdded = true;
+            break;
+          }
+        }
+        if (!alreadyAdded) {
+          foundRoots++;
+          target.add(tValue);
+        }
+      }
+    }
+    return foundRoots;
+  }
 }
 
 abstract class _ReduceOrderResult {

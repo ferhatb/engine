@@ -326,8 +326,7 @@ class _PathContourMeasure {
         case SPath.kConicVerb:
           assert(haveSeenMoveTo);
           final double w = iter.conicWeight;
-          Conic conic = Conic(points[0], points[1], points[2], points[3],
-              points[4], points[5], w);
+          Conic conic = Conic.fromPoints(points, w);
           List<ui.Offset> conicPoints = conic.toQuads();
           final int len = conicPoints.length;
           double startX = conicPoints[0].dx;

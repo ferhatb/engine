@@ -73,6 +73,25 @@ class _FloatBitConverter {
   }
 }
 
+class _DoubleBitConverter {
+  final ByteData arrayBuffer = ByteData(8);
+  set highBits(int value) {
+    arrayBuffer.setUint32(4, value, Endian.little);
+  }
+  int get highBits => arrayBuffer.getUint32(4, Endian.little);
+
+  set lowBits(int value) {
+    arrayBuffer.setUint32(0, value, Endian.little);
+  }
+  int get lowBits => arrayBuffer.getUint32(0, Endian.little);
+
+  set value(double value) {
+    arrayBuffer.setFloat64(0, value, Endian.little);
+  }
+
+  double get value => arrayBuffer.getFloat64(0, Endian.little);
+}
+
 // Singleton bit converter to prevent typed array allocations.
 final _FloatBitConverter _floatBitConverter = _FloatBitConverter();
 
@@ -166,6 +185,24 @@ bool approximatelyEqualT(double t1, double t2) {
 
 bool approximatelyZero(double value) => value.abs() < kFltEpsilon;
 
+bool approximatelyZeroInverse(double x) => x.abs() > kFltEpsilonInverse;
+
+bool approximatelyZeroCubed(double x) => x.abs() < kFltEpsilonCubed;
+
+bool approximatelyZeroOrMore(double x) => x > -kFltEpsilon;
+
+bool approximatelyLessThanZero(double x) => x < kFltEpsilon;
+
+bool approximatelyOneOrLess(double x) => x < 1 + kFltEpsilon;
+
+bool approximatelyGreaterThanOne(double x) => x > 1 - kFltEpsilon;
+
+bool roughlyNegative(double x) => x < kRoughEpsilon;
+
+bool roughlyBetween(double a, double b, double c) =>
+  a <= c ? roughlyNegative(a - b) && roughlyNegative(b - c)
+      : roughlyNegative(b - a) && roughlyNegative(c - b);
+
 bool roughlyEqualUlps(double a, double b) {
   const int kUlpsEpsilon = 256;
   const int kDUlpsEpsilon = 1024;
@@ -192,6 +229,80 @@ bool almostDequalUlpsDouble(double a, double b) {
 /// Checks if [x] is absolutely smaller than y scaled by epsilon.
 bool approximatelyZeroWhenComparedTo(double x, double y) {
   return x == 0 || x.abs() < (y * kFltEpsilon).abs();
+}
+
+/// Checks if x is negative within 4 [kDblEpsilon].
+bool preciselyNegative(double x) {
+  return x < kDblEpsilonErr;
+}
+
+/// Checks if b is in between a and c within 4 [kDblEpsilon].
+bool preciselyBetween(double a, double b, double c) {
+  return a <= c ? preciselyNegative(a - b) && preciselyNegative(b - c)
+      : preciselyNegative(b - a) && preciselyNegative(c - b);
+}
+
+/// Calculates a value to scale coefficients of a quadratic equation
+/// with, to calculate roots without overflowing.
+///
+/// Returns a positive power of 2 that, when multiplied by n, and excepting
+/// the two edge cases listed below, shifts the exponent of n to yield a
+/// magnitude somewhere inside [1..2).
+///
+/// 1- Returns 2^1023 if abs(n) < 2^-1022 (including 0).
+/// 2- Returns NaN if n is Inf or NaN.
+///
+/// Convert double to 64 bits, set exponent to -exponent but keep value.
+///
+/// See Press, W. H., Flannery, B. P., Teukolsky, S. A.,
+///     & Vetterling, W. T. 1992, Numerical Recipes
+///     (2d ed.; Cambridge: Cambridge Univ. Press)
+double previousInversePow2(double n) {
+  _DoubleBitConverter doubleBits = _DoubleBitConverter();
+  doubleBits.value = n;
+  int highBits = (0x7FEFFFFF - doubleBits.highBits) & 0x7FF00000;
+  doubleBits.highBits = highBits;
+  doubleBits.lowBits = 0;
+  return doubleBits.value;
+}
+
+/// Calculates cube root using Halley's method.
+double cubeRoot(double x) {
+  if (approximatelyZeroCubed(x)) {
+    return 0;
+  }
+  double result = _halleyCbrt3d(x.abs());
+  // Preserve sign.
+  if (x < 0) result = -result;
+  return result;
+}
+
+// Cube root approximation using Kahan's cbrt.
+double _cbrt5d(double d) {
+  int b1 = 0x2a9f7893;
+  final ByteData buffer = ByteData(16);
+  buffer.setFloat64(0, 0.0);
+  buffer.setFloat64(8, d);
+  int dAsBitsLow = buffer.getUint32(8);
+  int dAsBitsLowDiv3 = dAsBitsLow.toUnsigned(32) ~/ 3;
+  // Won't overflow since we divided by 3 and b1 has zero first 2 bits.
+  buffer.setUint32(0, dAsBitsLowDiv3 + b1);
+  return buffer.getFloat64(0);
+}
+
+// iterative cube root approximation using Halley's method (double).
+double _cbrtaHalleyd(double a, double R) {
+  double a3 = a * a * a;
+  double b = a * (a3 + R + R) / (a3 + a3 + R);
+  return b;
+}
+
+// Cube root approximation using 3 iterations of Halley's method (double).
+double _halleyCbrt3d(double d) {
+  double a = _cbrt5d(d);
+  a = _cbrtaHalleyd(a, d);
+  a = _cbrtaHalleyd(a, d);
+  return _cbrtaHalleyd(a, d);
 }
 
 const double kFltEpsilon = 1.19209290E-07; // == 1 / (2 ^ 23)

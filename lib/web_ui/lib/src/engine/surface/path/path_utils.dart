@@ -263,6 +263,14 @@ double _dotProduct(double x0, double y0, double x1, double y1) {
   return x0 * x1 + y0 * y1;
 }
 
+double _dotProductCubic(double x0, double y0, double x1, double y1,
+    double x2, double y2) {
+  final double xComp = x0 * (y1 - y2);
+  final double yComp = y0 * (x2 -  x1);
+  final double wComp = x1 *  y2 -  y1 *  x2;
+  return (xComp + yComp + wComp);
+}
+
 // Helper class for computing convexity for a single contour.
 //
 // Iteratively looks at angle (using cross product) between consecutive vectors
@@ -461,10 +469,15 @@ enum DirChange {
   kInvalid
 }
 
-// Return true if all components are finite.
+/// Return true if all components are finite.
 bool isPointFinite(double x, double y) {
   double accum = 0;
   accum *= x;
   accum *= y;
   return !accum.isNaN;
 }
+
+/// Returns first argument with sign of second argument.
+double copySign(double magnitude, double sign) =>
+  (magnitude.sign == sign.sign || sign == 0.0 || sign.isNaN)
+      ? magnitude : -magnitude;

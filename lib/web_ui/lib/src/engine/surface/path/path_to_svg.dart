@@ -29,8 +29,7 @@ void pathToSvg(SurfacePath path, StringBuffer sb,
         break;
       case SPath.kConicVerb:
         final double w = iter.conicWeight;
-        Conic conic = Conic(outPts[0], outPts[1], outPts[2], outPts[3],
-            outPts[4], outPts[5], w);
+        Conic conic = Conic.fromPoints(outPts, w);
         List<ui.Offset> points = conic.toQuads();
         final int len = points.length;
         for (int i = 1; i < len; i += 2) {

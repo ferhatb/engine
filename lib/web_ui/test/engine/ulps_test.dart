@@ -89,5 +89,30 @@ void main() {
       expect(roughlyEqualUlps(5.0402503619650929e-005, 4.3178054475078825e-005),
           true);
     });
+
+    test('previousInversePow2', () {
+      double res = previousInversePow2(5.0);
+      expect(res, 0.25);
+      res = previousInversePow2(5000.0);
+      expect(approximatelyEqualT(res, 0.000244140625), true);
+      res = previousInversePow2(50000000.0);
+      expect(approximatelyEqualT(res, 2.9802322387695313E-8), true);
+      res = previousInversePow2(-5000.0);
+      expect(approximatelyEqualT(res, 0.000244140625), true);
+      res = previousInversePow2(0.0003);
+      expect(res, 4096);
+      res = previousInversePow2(0.00000003);
+      expect(res, 33554432);
+      res = previousInversePow2(-0.00000003);
+      expect(res, 33554432);
+    });
+
+    test('Halley cube root', () {
+      expect(cubeRoot(0), 0);
+      expect(approximatelyZero(cubeRoot(0.0001) - 0.04641588833612779), true);
+      expect(approximatelyZero(cubeRoot(2) - 1.2599210498948732), true);
+      expect(approximatelyZero(cubeRoot(200) - 5.8480354764257321), true);
+      expect(approximatelyZero(cubeRoot(-5) - (-1.7099759466766968)), true);
+    });
   });
 }
