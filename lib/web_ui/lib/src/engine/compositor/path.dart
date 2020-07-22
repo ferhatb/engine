@@ -10,9 +10,6 @@ part of engine;
 class CkPath implements ui.Path {
   final SkPath _skPath;
 
-  // TODO(yjbanov): remove this once we're fully @JS-ified.
-  late final js.JsObject _legacyJsObject = _jsObjectWrapper.wrapSkPath(_skPath);
-
   CkPath() : _skPath = SkPath(), _fillType = ui.PathFillType.nonZero {
     _skPath.setFillType(toSkFillType(_fillType));
   }
@@ -58,10 +55,10 @@ class CkPath implements ui.Path {
   void addPath(ui.Path path, ui.Offset offset, {Float64List? matrix4}) {
     List<double> skMatrix;
     if (matrix4 == null) {
-      skMatrix = makeSkMatrixFromFloat32(
+      skMatrix = toSkMatrixFromFloat32(
           Matrix4.translationValues(offset.dx, offset.dy, 0.0).storage);
     } else {
-      skMatrix = makeSkMatrixFromFloat64(matrix4);
+      skMatrix = toSkMatrixFromFloat64(matrix4);
       skMatrix[2] += offset.dx;
       skMatrix[5] += offset.dy;
     }
@@ -132,8 +129,7 @@ class CkPath implements ui.Path {
       double rotation = 0.0,
       bool largeArc = false,
       bool clockwise = true}) {
-    final SkPathArcToPointOverload overload = _jsObjectWrapper.castToSkPathArcToPointOverload(_skPath);
-    overload.arcTo(
+    (_skPath as SkPathArcToPointOverload).arcTo(
       radius.x,
       radius.y,
       rotation,
@@ -174,10 +170,10 @@ class CkPath implements ui.Path {
   void extendWithPath(ui.Path path, ui.Offset offset, {Float64List? matrix4}) {
     List<double> skMatrix;
     if (matrix4 == null) {
-      skMatrix = makeSkMatrixFromFloat32(
+      skMatrix = toSkMatrixFromFloat32(
           Matrix4.translationValues(offset.dx, offset.dy, 0.0).storage);
     } else {
-      skMatrix = makeSkMatrixFromFloat64(matrix4);
+      skMatrix = toSkMatrixFromFloat64(matrix4);
       skMatrix[2] += offset.dx;
       skMatrix[5] += offset.dy;
     }
@@ -279,7 +275,7 @@ class CkPath implements ui.Path {
   ) {
     final CkPath path1 = uiPath1 as CkPath;
     final CkPath path2 = uiPath2 as CkPath;
-    final SkPath newPath = canvasKitJs.MakePathFromOp(
+    final SkPath newPath = canvasKit.MakePathFromOp(
       path1._skPath,
       path2._skPath,
       toSkPathOp(operation),

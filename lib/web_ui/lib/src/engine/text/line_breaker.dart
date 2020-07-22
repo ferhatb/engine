@@ -27,33 +27,8 @@ class LineBreakResult {
   final LineBreakType type;
 }
 
-/// Normalizes properties that behave the same way into one common property.
-LineCharProperty? _normalizeLineProperty(LineCharProperty? prop) {
-  // NL behaves exactly the same as BK.
-  // See: https://www.unicode.org/reports/tr14/tr14-45.html#NL
-  if (prop == LineCharProperty.NL) {
-    return LineCharProperty.BK;
-  }
-  // In the absence of extra data (ICU data and language dictionaries), the
-  // following properties will be treated as AL (alphabetic): AI, SA, SG and XX.
-  // See LB1: https://www.unicode.org/reports/tr14/tr14-45.html#LB1
-  if (prop == LineCharProperty.AI ||
-      prop == LineCharProperty.SA ||
-      prop == LineCharProperty.SG ||
-      prop == LineCharProperty.XX) {
-    return LineCharProperty.AL;
-  }
-
-  if (prop == LineCharProperty.CJ) {
-    return LineCharProperty.NS;
-  }
-
-  return prop;
-}
-
 bool _isHardBreak(LineCharProperty? prop) {
-  // No need to check for NL because it should've been normalized to BK already
-  // by [_normalizeLineProperty].
+  // No need to check for NL because it's already normalized to BK.
   return prop == LineCharProperty.LF || prop == LineCharProperty.BK;
 }
 
@@ -91,7 +66,8 @@ bool _hasEastAsianWidthFWH(int charCode) {
 /// * https://www.unicode.org/reports/tr14/tr14-45.html#Algorithm
 /// * https://www.unicode.org/Public/11.0.0/ucd/LineBreak.txt
 LineBreakResult nextLineBreak(String text, int index) {
-  LineCharProperty? curr = _normalizeLineProperty(lineLookup.find(text, index));
+  int? codePoint = getCodePoint(text, index);
+  LineCharProperty curr = lineLookup.findForChar(codePoint);
 
   LineCharProperty? prev1;
 
@@ -117,9 +93,23 @@ LineBreakResult nextLineBreak(String text, int index) {
     curr = LineCharProperty.AL;
   }
 
+  int regionalIndicatorCount = 0;
+
   // Always break at the end of text.
   // LB3: ! eot
   while (index < text.length) {
+    // Keep count of the RI (regional indicator) sequence.
+    if (curr == LineCharProperty.RI) {
+      regionalIndicatorCount++;
+    } else {
+      regionalIndicatorCount = 0;
+    }
+
+    if (codePoint != null && codePoint > 0xFFFF) {
+      // Advance `index` one extra step when handling a surrogate pair in the
+      // string.
+      index++;
+    }
     index++;
     prev2 = prev1;
     prev1 = curr;
@@ -131,7 +121,9 @@ LineBreakResult nextLineBreak(String text, int index) {
       baseOfSpaceSequence = null;
     }
 
-    curr = _normalizeLineProperty(lineLookup.find(text, index));
+    codePoint = getCodePoint(text, index);
+    curr = lineLookup.findForChar(codePoint);
+
     isCurrZWJ = curr == LineCharProperty.ZWJ;
 
     // Always break after hard line breaks.
@@ -208,6 +200,10 @@ LineBreakResult nextLineBreak(String text, int index) {
         // LB10: Treat any remaining combining mark or ZWJ as AL.
         curr = LineCharProperty.AL;
       } else {
+        if (prev1 == LineCharProperty.RI) {
+          // Prevent the previous RI from being double-counted.
+          regionalIndicatorCount--;
+        }
         // Preserve the property of the previous character to treat the sequence
         // as if it were X.
         curr = prev1;
@@ -463,6 +459,24 @@ LineBreakResult nextLineBreak(String text, int index) {
     if (prev1 == LineCharProperty.CP &&
         !_hasEastAsianWidthFWH(text.codeUnitAt(index - 1)) &&
         (_isALorHL(curr) || curr == LineCharProperty.NU)) {
+      continue;
+    }
+
+    // Break between two regional indicator symbols if and only if there are an
+    // even number of regional indicators preceding the position of the break.
+    // LB30a: sot (RI RI)* RI × RI
+    //        [^RI] (RI RI)* RI × RI
+    if (curr == LineCharProperty.RI) {
+      if (regionalIndicatorCount.isOdd) {
+        continue;
+      } else {
+        return LineBreakResult(index, LineBreakType.opportunity);
+      }
+    }
+
+    // Do not break between an emoji base and an emoji modifier.
+    // LB30b: EB × EM
+    if (prev1 == LineCharProperty.EB && curr == LineCharProperty.EM) {
       continue;
     }
 
