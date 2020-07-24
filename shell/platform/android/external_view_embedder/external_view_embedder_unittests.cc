@@ -1,6 +1,7 @@
 // Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+// FLUTTER_NOLINT
 
 #include "flutter/flow/embedded_views.h"
 #include "flutter/flow/surface.h"
@@ -160,7 +161,6 @@ TEST(AndroidExternalViewEmbedder, RasterizerRunsOnPlatformThread) {
 
   auto postpreroll_result = embedder->PostPrerollAction(raster_thread_merger);
   ASSERT_EQ(PostPrerollResult::kResubmitFrame, postpreroll_result);
-  ASSERT_TRUE(embedder->SubmitFrame(nullptr, nullptr));
 
   EXPECT_CALL(*jni_mock, FlutterViewEndFrame());
   embedder->EndFrame(/*should_resubmit_frame=*/true, raster_thread_merger);
