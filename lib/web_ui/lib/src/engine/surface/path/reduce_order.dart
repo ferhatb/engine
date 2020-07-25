@@ -116,8 +116,123 @@ class ReduceOrder {
     return _reduceLine(reduction);
   }
 
-  static int cubic(Float32List points) {
-    throw UnimplementedError();
+  /// check to see if it is a quadratic or a line
+  static int _checkQuadratic(Float32List points, Float32List reduction) {
+    double dx10 = points[2] - points[0];
+    double dx23 = points[4] - points[6];
+    double midX = points[0] + dx10 * 3 / 2;
+    double sideAx = midX - points[6];
+    double sideBx = dx23 * 3 / 2;
+    if (approximatelyZero(sideAx) ? !approximatelyEqualT(sideAx, sideBx)
+        : !almostEqualUlpsPin(sideAx, sideBx)) {
+      return 0;
+    }
+    double dy10 = points[3] - points[1];
+    double dy23 = points[5] - points[7];
+    double midY = points[1] + dy10 * 3 / 2;
+    double sideAy = midY - points[7];
+    double sideBy = dy23 * 3 / 2;
+    if (approximatelyZero(sideAy) ? !approximatelyEqualT(sideAy, sideBy)
+        : !almostEqualUlpsPin(sideAy, sideBy)) {
+      return 0;
+    }
+    reduction[0] = points[0];
+    reduction[1] = points[1];
+    reduction[2] = midX;
+    reduction[3] = midY;
+    reduction[4] = points[6];
+    reduction[5] = points[7];
+    return _ReduceOrderResult.kQuad;
+  }
+
+  /// Reduce cubic curve to a quadratic or smaller.
+  ///
+  /// look for identical points
+  /// look for all four points in a line
+  /// note that three points in a line doesn't simplify a cubic
+  /// look for approximation with single quadratic
+  /// save approximation with multiple quadratics in [fQuads] for later.
+  static int _cubic(Float32List points, Float32List target,
+      {bool allowQuadratics = true}) {
+    int index;
+    int minXIndex = 0;
+    int minYIndex = 0;
+    int maxXIndex = 0;
+    int maxYIndex = 0;
+    // Bit patterns that indicate minimumY is almost equal to point at index.
+    int minXSet = 0;
+    int minYSet = 0;
+    for (int index = 2; index < 8; index += 2) {
+      if (points[index] < points[minXIndex]) {
+        minXIndex = index;
+      }
+      if (points[index + 1] < points[minYIndex + 1]) {
+        minYIndex = index;
+      }
+      if (points[index] > points[maxXIndex]) {
+        maxXIndex = index;
+      }
+      if (points[index + 1] > points[maxYIndex + 1]) {
+        maxYIndex = index;
+      }
+    }
+    final double minX = points[minXIndex];
+    final double minY = points[minXIndex + 1];
+    for (index = 0; index < 4; ++index) {
+        double cx = points[index * 2];
+        double cy = points[index * 2 + 1];
+        double denom = math.max(cx.abs(), math.max(cy.abs(),
+          math.max(minX.abs(), minY.abs())));
+        if (denom == 0) {
+          minXSet |= 1 << index;
+          minYSet |= 1 << index;
+          continue;
+        }
+        double inv = 1 / denom;
+        if (approximatelyEqualHalf(cx * inv, minX * inv)) {
+            minXSet |= 1 << index;
+        }
+        if (approximatelyEqualHalf(cy * inv, minY * inv)) {
+            minYSet |= 1 << index;
+        }
+    }
+    if (minXSet == 0xF) {  // test for vertical line
+        if (minYSet == 0xF) {  // return 1 if all four are coincident
+            return _coincidentLine(points, target);
+        }
+        return _verticalOrHorizontalLine(points, target);
+    }
+    if (minYSet == 0xF) {  // test for horizontal line
+        return _verticalOrHorizontalLine(points, target);
+    }
+    int result = _checkLinear(points, target);
+    if (result != 0) {
+      return _ReduceOrderResult.kLine;
+    }
+    if (allowQuadratics &&
+        (result = _checkQuadratic(points, target)) != 0) {
+      return result;
+    }
+    if (target != points) {
+      for (int i = 0; i < 8; i++) {
+        target[i] = points[i];
+      }
+    }
+    return _ReduceOrderResult.kCubic;
+  }
+
+  /// Reduce cubic curve to a quadratic or smaller.
+  static int cubic(Float32List points, Float32List target) {
+    if (approximatelyEqual(points[0], points[1], points[2], points[3])
+        && approximatelyEqual(points[0], points[1], points[4], points[5])
+        && approximatelyEqual(points[0], points[1], points[6], points[7])) {
+      if (target != points) {
+        target[0] = points[0];
+        target[1] = points[1];
+      }
+      return SPathVerb.kMove;
+    }
+    return _cubic(points, target, allowQuadratics: true);
   }
 }
 
@@ -229,6 +344,7 @@ abstract class _ReduceOrderResult {
   static const int kPoint = SPathVerb.kMove;
   static const int kLine = SPathVerb.kLine;
   static const int kQuad = SPathVerb.kQuad;
+  static const int kCubic = SPathVerb.kCubic;
 }
 
 enum _Quadratics {

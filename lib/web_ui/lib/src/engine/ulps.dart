@@ -183,6 +183,12 @@ bool approximatelyEqualT(double t1, double t2) {
   return approximatelyZero(t1 - t2);
 }
 
+bool approximatelyEqualHalf(double x, double y) {
+  return approximatelyZeroHalf(x - y);
+}
+
+bool approximatelyZeroHalf(double x) => x.abs() < kFltEpsilonHalf;
+
 bool approximatelyZero(double value) => value.abs() < kFltEpsilon;
 
 bool approximatelyZeroInverse(double x) => x.abs() > kFltEpsilonInverse;
@@ -224,6 +230,29 @@ bool almostDequalUlpsDouble(double a, double b) {
     return almostDequalUlps(a, b);
   }
   return (a - b).abs() / math.max(absA, absB) < kDblEpsilonSubdivideErr;
+}
+
+bool almostEqualUlpsPin(double a, double b) {
+  const int kUlpsEpsilon = 16;
+  return equalUlpsPin(a, b, kUlpsEpsilon, kUlpsEpsilon);
+}
+
+bool argumentsDenormalized(double a, double b, int epsilon) {
+  final double denormalizedCheck = kFltEpsilon * epsilon / 2;
+  return a.abs() <= denormalizedCheck && b.abs() <= denormalizedCheck;
+}
+
+bool equalUlpsPin(double a, double b, int epsilon, int depsilon) {
+  if (!a.isFinite || !b.isFinite) {
+    return false;
+  }
+  if (argumentsDenormalized(a, b, depsilon)) {
+    return true;
+  }
+  int aBits = floatAs2sCompliment(a);
+  int bBits = floatAs2sCompliment(b);
+  // Find the difference in ULPs.
+  return aBits < bBits + epsilon && bBits < aBits + epsilon;
 }
 
 /// Checks if [x] is absolutely smaller than y scaled by epsilon.

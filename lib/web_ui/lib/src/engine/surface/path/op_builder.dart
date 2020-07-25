@@ -651,7 +651,7 @@ class OpEdgeBuilder {
           points[5] = _forceSmallToZero(points[5]);
           points[6] = _forceSmallToZero(points[6]);
           points[7] = _forceSmallToZero(points[7]);
-          verb = ReduceOrder.cubic(points);
+          verb = ReduceOrder.cubic(points, points);
           if (verb == SPathVerb.kMove) {
             continue;  // skip degenerate points
           }
@@ -830,24 +830,27 @@ class OpEdgeBuilder {
             contourBuilder.addCubic(points);
             break;
           }
-//          assert(breaks.length <= 3);
-//          breaks.sort();
-//          List<_CubicSplit> splits = [];
-//
-//          for (int index = 0; index <= breaks.length; ++index) {
-//            _CubicSplit split = _CubicSplit(
-//                index != 0 ? breaks[index - 1] : 0.0,
-//                index < breaks.length ? breaks[index] : 1
-//            );
-//            SkDCubic part = Cubic.fromPoints(points).subDivide(split.tStart, split.tEnd);
-//            if (!part.toFloatPoints(split->fPts)) {
-//              return false;
-//            }
-//            split.fVerb = ReduceOrder.cubic(split->fPts, split->fReduced);
-//            SkPoint* curve = SkPath::kCubic_Verb == split->fVerb
-//                    ? split->fPts : split->fReduced;
-//            split->fCanAdd = can_add_curve(split->fVerb, curve);
-//          }
+          assert(breaks.length <= 3);
+          breaks.sort();
+          List<_CubicSplit> splits = [];
+
+          for (int index = 0; index <= breaks.length; ++index) {
+            _CubicSplit split = _CubicSplit(
+                index != 0 ? breaks[index - 1] : 0.0,
+                index < breaks.length ? breaks[index] : 1
+            );
+            Cubic part = Cubic.fromPoints(points).subDivide(split.tStart, split.tEnd);
+            if (!part.isFinite) {
+              return false;
+            }
+            Float32List reducedPoints = Float32List(4 * 2);
+            Float32List cubicPoints = part.toPoints();
+            split.fVerb = ReduceOrder.cubic(cubicPoints, reducedPoints);
+            Float32List curve = SPathVerb.kCubic == split.fVerb
+              ? cubicPoints : reducedPoints;
+            split.fCanAdd = _canAddCurve(split.fVerb!, curve);
+          }
+
 //          for (int index = 0; index <= breaks; ++index) {
 //              Splitsville* split = &splits[index];
 //              if (!split->fCanAdd) {
@@ -879,8 +882,8 @@ class OpEdgeBuilder {
 //                  return false;
 //              }
 //              fContourBuilder.addCurve(split->fVerb, curve);
-//          }
-//          break;
+          }
+          break;
 //        case SPathVerb.kClose:
 //          if (!close()) {
 //            return false;
@@ -890,7 +893,7 @@ class OpEdgeBuilder {
 //          return false;
       }
 //      contour.debugValidate();
-    }
+//    }
     contourBuilder.flush();
     if (contour.count != 0 && !allowOpenContours && !close()) {
       return false;

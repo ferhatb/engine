@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:ui/ui.dart' hide window;
 import 'package:ui/src/engine.dart';
+import 'cubic_test_data.dart';
 
 void main() {
   group('ReduceOrder', () {
@@ -36,7 +37,6 @@ void main() {
     });
 
     test('Quadratic lines', () {
-      ReduceOrder reducer = ReduceOrder();
       for (int index = 0; index < quadraticLinesCount; ++index) {
         Float32List quad = offsetListToPoints(quadraticLines[index]);
         int order = ReduceOrder.quad(quad, quad);
@@ -45,7 +45,6 @@ void main() {
     });
 
     test('Quadratic mod lines', () {
-      ReduceOrder reducer = ReduceOrder();
       for (int index = 0; index < quadraticModEpsilonLinesCount; ++index) {
         Float32List quad = offsetListToPoints(quadraticModEpsilonLines[index]);
         int order = ReduceOrder.quad(quad, quad);
@@ -53,18 +52,17 @@ void main() {
             'Unexpected order, [$index] line quad order=$order');
       }
     });
-  });
-}
 
-/// Helper function to convert list of offsets to typed array.
-Float32List offsetListToPoints(List<Offset> offsets) {
-  Float32List points = Float32List(offsets.length * 2);
-  int pointIndex = 0;
-  for (int p = 0; p < offsets.length; p++) {
-    points[pointIndex++] = offsets[p].dx;
-    points[pointIndex++] = offsets[p].dy;
-  }
-  return points;
+    test('Cubic degenerates', () {
+      for (int index = 0; index < pointDegeneratesCount; ++index) {
+        Float32List points = offsetListToPoints(pointDegenerates[index]);
+        Float32List reduction = Float32List(8);
+        int order = ReduceOrder.cubic(points, reduction);
+        expect(order, 1, reason:
+          'Expected pointDegenerates order=1 got $order');
+      }
+    });
+  });
 }
 
 /// Test data for quadratic order reduction.

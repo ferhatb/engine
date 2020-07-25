@@ -29,6 +29,46 @@ class Cubic {
     return points;
   }
 
+  Cubic subDivide(double t1, double t2) {
+    if (t1 == 0 || t2 == 1) {
+      if (t1 == 0 && t2 == 1) {
+        return this;
+      }
+      _CubicPair pair = chopAt(t1 == 0 ? t2 : t1);
+      return t1 == 0 ? pair.first : pair.second;
+    }
+    if (t1 < t2) {
+      return chopAt(t1).second.chopAt(t2).first;
+    } else {
+      return chopAt(t2).second.chopAt(t1).first;
+    }
+  }
+
+  bool get isFinite => p0x.isFinite && p0y.isFinite && p1x.isFinite &&
+      p1y.isFinite && p2x.isFinite && p2y.isFinite && p3x.isFinite &&
+      p3y.isFinite;
+
+  _CubicPair chopAt(double t) {
+    assert(t > 0 && t < 1);
+    // If startT == 0 chop at end point and return curve.
+    final double ab1x = _interpolate(p0x, p1x, t);
+    final double ab1y = _interpolate(p0y, p1y, t);
+    final double bc1x = _interpolate(p1x, p2x, t);
+    final double bc1y = _interpolate(p1y, p2y, t);
+    final double cd1x = _interpolate(p2x, p3x, t);
+    final double cd1y = _interpolate(p2y, p3y, t);
+    final double abc1x = _interpolate(ab1x, bc1x, t);
+    final double abc1y = _interpolate(ab1y, bc1y, t);
+    final double bcd1x = _interpolate(bc1x, cd1x, t);
+    final double bcd1y = _interpolate(bc1y, cd1y, t);
+    final double abcd1x = _interpolate(abc1x, bcd1x, t);
+    final double abcd1y = _interpolate(abc1y, bcd1y, t);
+
+    Cubic left = Cubic(p0x, p0y, ab1x, ab1y, abc1x, abc1y, abcd1x, abcd1y);
+    Cubic right = Cubic(abcd1x, abcd1y, bcd1x, bcd1y, cd1x, cd1y, p3x, p3y);
+    return _CubicPair(left, right);
+}
+
   /// True if curve is monotonically increasing or decreasing in x.
   bool monotonicInX() => preciselyBetween(p0x, p1x, p3x)
         && preciselyBetween(p0x, p2x, p3x);
@@ -695,4 +735,10 @@ void _chopCubicBetweenT(
   buffer[5] = abc2y;
   buffer[6] = abcd2x;
   buffer[7] = abcd2y;
+}
+
+class _CubicPair {
+  _CubicPair(this.first, this.second);
+  final Cubic first;
+  final Cubic second;
 }
