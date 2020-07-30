@@ -20,7 +20,10 @@ part of dart.ui;
 
 // Update this list when changing the list of supported codecs.
 /// {@template flutter.dart:ui.imageFormats}
-/// JPEG, PNG, GIF, Animated GIF, WebP, Animated WebP, BMP, and WBMP
+/// JPEG, PNG, GIF, Animated GIF, WebP, Animated WebP, BMP, and WBMP. Additional
+/// formats may be supported by the underlying platform. Flutter will
+/// attempt to call platform API to decode unrecognized formats, and if the
+/// platform API supports decoding the image Flutter will be able to render it.
 /// {@endtemplate}
 
 bool _rectIsValid(Rect rect) {
@@ -1164,8 +1167,9 @@ class Paint {
   /// See also:
   ///
   ///  * [Canvas.saveLayer], which uses its [Paint]'s [blendMode] to composite
-  ///    the layer when [restore] is called.
-  ///  * [BlendMode], which discusses the user of [saveLayer] with [blendMode].
+  ///    the layer when [Canvas.restore] is called.
+  ///  * [BlendMode], which discusses the user of [Canvas.saveLayer] with
+  ///    [blendMode].
   BlendMode get blendMode {
     final int encoded = _data.getInt32(_kBlendModeOffset, _kFakeHostEndian);
     return BlendMode.values[encoded ^ _kBlendModeDefault];
@@ -1557,7 +1561,7 @@ enum PixelFormat {
 
 /// Opaque handle to raw decoded image data (pixels).
 ///
-/// To obtain an [Image] object, use [instantiateImageCodec].
+/// To obtain an [Image] object, use the [ImageDescriptor] API.
 ///
 /// To draw an [Image], use one of the methods on the [Canvas] class, such as
 /// [Canvas.drawImage].
@@ -1565,6 +1569,9 @@ enum PixelFormat {
 /// See also:
 ///
 ///  * [Image](https://api.flutter.dev/flutter/widgets/Image-class.html), the class in the [widgets] library.
+///  * [ImageDescriptor], which allows reading information about the image and
+///    creating a codec to decode it.
+///  * [instantiateImageCodec], a utility method that wraps [ImageDescriptor].
 ///
 @pragma('vm:entry-point')
 class Image extends NativeFieldWrapperClass2 {
@@ -1677,6 +1684,11 @@ class Codec extends NativeFieldWrapperClass2 {
 }
 
 /// Instantiates an image [Codec].
+///
+/// This method is a convenience wrapper around the [ImageDescriptor] API, and
+/// using [ImageDescriptor] directly is preferred since it allows the caller to
+/// make better determinations about how and whether to use the `targetWidth`
+/// and `targetHeight` parameters.
 ///
 /// The `list` parameter is the binary image data (e.g a PNG or GIF binary data).
 /// The data can be for either static or animated images. The following image
