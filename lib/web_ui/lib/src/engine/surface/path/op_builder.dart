@@ -290,6 +290,12 @@ bool _rectIntersects(ui.Rect a, ui.Rect b) =>
   a.left < (b.right + kEpsilon) && b.left < (a.right  + kEpsilon) &&
       a.top < (b.bottom + kEpsilon) && b.top < (a.bottom + kEpsilon);
 
+bool _boundsIntersects(ui.Rect a, ui.Rect b) =>
+  almostLessOrEqualUlps(a.left, b.right)
+    && almostLessOrEqualUlps(b.left, a.right)
+    && almostLessOrEqualUlps(a.top, b.bottom)
+    && almostLessOrEqualUlps(b.top, a.bottom);
+
 bool _simplify(SurfacePath path, SurfacePath target) {
   int fillType = path.isInverseFillType ?
     SPathFillType.kInverseEvenOdd : SPathFillType.kEvenOdd;
@@ -309,27 +315,21 @@ bool _simplify(SurfacePath path, SurfacePath target) {
     return false;
   }
 
-  // TODO PATH
-
-//  if (!SortContourList(&contourList, false, false)) {
-//      result->reset();
-//      result->setFillType(fillType);
-//      return true;
-//  }
-//  // find all intersections between segments
-//  SkOpContour* current = contourList;
-//  do {
-//      SkOpContour* next = current;
-//      while (AddIntersectTs(current, next, &coincidence)
-//              && (next = next->next()));
-//  } while ((current = current->next()));
+  List<OpContour> contourList = _sortContourList(builder.contourList, false , false);
+  // Find all intersections between segments.
+  final int contourCount = contourList.length;
+  for (int i = 0, len = contourCount - 1; i < len; i++) {
+    for (int j = i + 1; j < contourCount; j++) {
+      addIntersectTs(contourList[i], contourList[j], coincidence);
+    }
+  }
 //  bool success = HandleCoincidence(contourList, &coincidence);
 //  if (!success) {
 //      return false;
 //  }
 //  // construct closed contours
-//  result->reset();
-//  result->setFillType(fillType);
+//  target->reset();
+//  target->setFillType(fillType);
 //  SkPathWriter wrapper(*result);
 //  if (builder.xorMask() == kWinding_PathOpsMask ? !bridgeWinding(contourList, &wrapper)
 //          : !bridgeXor(contourList, &wrapper)) {
@@ -558,6 +558,7 @@ class OpEdgeBuilder {
   final SurfacePath path;
   final OpGlobalState globalState;
   final OpContourBuilder contourBuilder = OpContourBuilder();
+  final List<OpContour> contourList = [];
   OpContour? fContoursHead;
   List<int> fXorMask = [SPathOpsMask.kNo_Path, SPathOpsMask.kNo_Path];
 
@@ -711,22 +712,11 @@ class OpEdgeBuilder {
     if (fUnparseable || !_walk()) {
       return false;
     }
-//    complete();
-//    OpContour? contour = fContourBuilder.contour;
-//    if (contour!= null && contour.count == 0) {
-//      fContoursHead.remove(contour);
-//    }
+    complete();
     return true;
   }
 
   bool _walk() {
-//    uint8_t* verbPtr = fPathVerbs.begin();
-//    uint8_t* endOfFirstHalf = &verbPtr[fSecondHalf];
-//    SkPoint* pointsPtr = fPathPts.begin();
-//    SkScalar* weightPtr = fWeights.begin();
-//    SkPath::Verb verb;
-//    SkOpContour* contour = fContourBuilder.contour();
-//
     int verb = 0;
     final Float32List points = Float32List(PathRefIterator.kMaxBufferSize);
     PathRefIterator iter = PathRefIterator(_activePath);
@@ -746,6 +736,7 @@ class OpEdgeBuilder {
                   return false;
                 }
             }
+            contourList.add(contour);
             // If verbs are part of secondHalf, mark the contour as operand.
             contour.init(fOperand,
                 fXorMask[fOperand ? 1 : 0] == SPathOpsMask.kEvenOdd);
@@ -834,7 +825,7 @@ class OpEdgeBuilder {
           assert(breaks.length <= 3);
           breaks.sort();
           List<_CubicSplit> splits = [];
-
+          Float32List reducedPoints = Float32List(4 * 2);
           for (int index = 0; index <= breaks.length; ++index) {
             _CubicSplit split = _CubicSplit(
                 index != 0 ? breaks[index - 1] : 0.0,
@@ -844,57 +835,57 @@ class OpEdgeBuilder {
             if (!part.isFinite) {
               return false;
             }
-            Float32List reducedPoints = Float32List(4 * 2);
             Float32List cubicPoints = part.toPoints();
+            split.fPts = cubicPoints;
             split.fVerb = ReduceOrder.cubic(cubicPoints, reducedPoints);
-            Float32List curve = SPathVerb.kCubic == split.fVerb
+            Float32List curve = SPathVerb.kCubic == split.fVerb!
               ? cubicPoints : reducedPoints;
             split.fCanAdd = _canAddCurve(split.fVerb!, curve);
+            splits.add(split);
           }
 
-//          for (int index = 0; index <= breaks; ++index) {
-//              Splitsville* split = &splits[index];
-//              if (!split->fCanAdd) {
-//                  continue;
-//              }
-//              int prior = index;
-//              while (prior > 0 && !splits[prior - 1].fCanAdd) {
-//                  --prior;
-//              }
-//              if (prior < index) {
-//                  split->fT[0] = splits[prior].fT[0];
-//                  split->fPts[0] = splits[prior].fPts[0];
-//              }
-//              int next = index;
-//              int breakLimit = std::min(breaks, (int) SK_ARRAY_COUNT(splits) - 1);
-//              while (next < breakLimit && !splits[next + 1].fCanAdd) {
-//                  ++next;
-//              }
-//              if (next > index) {
-//                  split->fT[1] = splits[next].fT[1];
-//                  split->fPts[3] = splits[next].fPts[3];
-//              }
-//              if (prior < index || next > index) {
-//                  split->fVerb = SkReduceOrder::Cubic(split->fPts, split->fReduced);
-//              }
-//              SkPoint* curve = SkPath::kCubic_Verb == split->fVerb
-//                      ? split->fPts : split->fReduced;
-//              if (!can_add_curve(split->fVerb, curve)) {
-//                  return false;
-//              }
-//              fContourBuilder.addCurve(split->fVerb, curve);
+          for (int index = 0; index <= breaks.length; ++index) {
+            _CubicSplit split = splits[index];
+            if (!split.fCanAdd) {
+              continue;
+            }
+            int prior = index;
+            while (prior > 0 && !splits[prior - 1].fCanAdd) {
+              --prior;
+            }
+            if (prior < index) {
+              split.tStart = splits[prior].tStart;
+              split.fPts![0] = splits[prior].fPts![0];
+            }
+            int next = index;
+            int breakLimit = math.min(breaks.length, splits.length - 1);
+            while (next < breakLimit && !splits[next + 1].fCanAdd) {
+              ++next;
+            }
+            if (next > index) {
+              split.tEnd = splits[next].tEnd;
+              split.fPts![3] = splits[next].fPts![3];
+            }
+            if (prior < index || next > index) {
+              split.fVerb = ReduceOrder._cubic(points, reducedPoints);
+            }
+            Float32List curvePoints = split.fVerb! == SPathVerb.kCubic ?
+                split.fPts! : reducedPoints;
+            if (!_canAddCurve(split.fVerb!, curvePoints)) {
+              return false;
+            }
+            contourBuilder.addCurve(split.fVerb!, curvePoints);
           }
           break;
-//        case SPathVerb.kClose:
-//          if (!close()) {
-//            return false;
-//          }
-//          continue;
-//        default:
-//          return false;
+        case SPathVerb.kClose:
+          if (!close()) {
+            return false;
+          }
+          continue;
+        default:
+          return false;
       }
-//      contour.debugValidate();
-//    }
+    }
     contourBuilder.flush();
     if (contour.count != 0 && !allowOpenContours && !close()) {
       return false;
@@ -916,13 +907,11 @@ class OpEdgeBuilder {
   }
 
   void complete() {
-    ///// TODO
-//    fContourBuilder.flush();
-//    OpContour? contour = fContourBuilder.contour;
-//    if (contour != null && contour.count != 0) {
-//      contour.complete();
-//      fContourBuilder.setContour(null);
-//    }
+    contourBuilder.flush();
+    OpContour contour = contourBuilder.contour;
+    if (contour != null && contour.count != 0) {
+      contour.complete();
+    }
   }
 
   bool close() {
@@ -938,8 +927,26 @@ class _CubicSplit {
   _CubicSplit(this.tStart, this.tEnd);
   double tStart;
   double tEnd;
-  List<ui.Offset> fPts = [];
-  List<ui.Offset> fReduced = [];
+  Float32List? fPts;
   int? fVerb;
-  bool? fCanAdd;
+  bool fCanAdd = false;
+}
+
+/// Filters contourList to non empty contours and sorts them by
+/// vertical,horizontal bounds.
+List<OpContour> _sortContourList(List<OpContour> contourList, bool evenOdd, bool oppEvenOdd) {
+  List<OpContour> sortedList = [];
+  for (OpContour contour in contourList) {
+    if (contour.count > 0) {
+      sortedList.add(contour);
+    }
+  }
+  sortedList.sort((OpContour contour1, OpContour contour2) {
+    final ui.Rect bounds1 = contour1.bounds;
+    final ui.Rect bounds2 = contour2.bounds;
+    return bounds1.top == bounds2.top
+        ? SPath.scalarSignedAsInt(bounds1.left - bounds1.right)
+        : SPath.scalarSignedAsInt(bounds1.top - bounds2.top);
+  });
+  return sortedList;
 }

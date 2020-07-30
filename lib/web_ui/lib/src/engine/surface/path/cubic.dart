@@ -68,7 +68,7 @@ class Cubic {
     Cubic left = Cubic(p0x, p0y, ab1x, ab1y, abc1x, abc1y, abcd1x, abcd1y);
     Cubic right = Cubic(abcd1x, abcd1y, bcd1x, bcd1y, cd1x, cd1y, p3x, p3y);
     return _CubicPair(left, right);
-}
+  }
 
   /// True if curve is monotonically increasing or decreasing in x.
   bool monotonicInX() => preciselyBetween(p0x, p1x, p3x)
@@ -143,6 +143,26 @@ class Cubic {
   }
 
   static const double gPrecisionUnit = 256;
+
+  static bool isLinear(Float32List points, int startIndex, int endIndex) {
+    if (approximatelyEqual(points[0], points[1], points[6], points[7])) {
+      return Quad.isLinear(points, 0, 2);
+    }
+    final LineParameters lineParameters = LineParameters();
+    lineParameters.cubicEndPointsAt(points, startIndex, endIndex);
+    lineParameters.normalize();
+    double tiniest = math.min(math.min(math.min(math.min(math.min(points[0], points[1]),
+    points[2]), points[3]), points[4]), math.min(points[5], math.min(points[6], points[7])));
+    double largest = math.max(math.max(math.max(math.max(math.max(points[0], points[1]),
+    points[2]), points[3]), points[4]), math.max(points[5], math.max(points[6], points[7])));
+    largest = math.max(largest, -tiniest);
+    double distance = lineParameters.controlPtDistance(points, 1);
+    if (!approximatelyZeroWhenComparedTo(distance, largest)) {
+      return false;
+    }
+    distance = lineParameters.controlPtDistance(points, 2);
+    return approximatelyZeroWhenComparedTo(distance, largest);
+  }
 
   /// Get the rough scale of the cubic.
   ///

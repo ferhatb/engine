@@ -124,6 +124,10 @@ bool _argumentsDenormalized(double a, double b, int epsilon) {
   return a.abs() <= denormalizedCheck && b.abs() <= denormalizedCheck;
 }
 
+/// Returns true if values at float precision are equal.
+bool equalAsFloats(double a, double b) =>
+  _floatBitConverter.toBits(a) == _floatBitConverter.toBits(b);
+
 bool equalUlps(double a, double b, int epsilon, int depsilon) {
   if (_argumentsDenormalized(a, b, depsilon)) {
     return true;
@@ -134,11 +138,36 @@ bool equalUlps(double a, double b, int epsilon, int depsilon) {
   return aBits < bBits + epsilon && bBits < aBits + epsilon;
 }
 
+bool lessUlps(double a, double b, int epsilon) {
+  if (_argumentsDenormalized(a, b, epsilon)) {
+    return a <= b - kFltEpsilon * epsilon;
+  }
+  int aBits = floatAs2sCompliment(a);
+  int bBits = floatAs2sCompliment(b);
+  // Find the difference in ULPs.
+  return aBits <= bBits - epsilon;
+}
+
+bool lessOrEqualUlps(double a, double b, int epsilon) {
+  if (_argumentsDenormalized(a, b, epsilon)) {
+    return a <= b - kFltEpsilon * epsilon;
+  }
+  int aBits = floatAs2sCompliment(a);
+  int bBits = floatAs2sCompliment(b);
+  // Find the difference in ULPs.
+  return aBits < bBits - epsilon;
+}
+
 /// General equality check that covers between, product and division by using
 /// ulps epsilon 16.
 bool almostEqualUlps(double a, double b) {
   const int kUlpsEpsilon = 16;
   return equalUlps(a, b, kUlpsEpsilon, kUlpsEpsilon);
+}
+
+bool notAlmostEqualUlpsPin(double a, double b) {
+  const int kUlpsEpsilon = 16;
+  return !equalUlpsPin(a, b, kUlpsEpsilon, kUlpsEpsilon);
 }
 
 /// Equality using the same error term for between comparison.
@@ -159,6 +188,33 @@ bool almostDequalUlps(double a, double b) {
   return equalUlps(a, b, kUlpsEpsilon, kUlpsEpsilon);
 }
 
+bool almostLessUlps(double a, double b) {
+  const int kUlpsEpsilon = 16;
+  return lessUlps(a, b, kUlpsEpsilon);
+}
+
+bool almostLessOrEqualUlps(double a, double b) {
+  const int kUlpsEpsilon = 16;
+  return lessOrEqualUlps(a, b, kUlpsEpsilon);
+}
+
+/// Checks if 2 double points are roughly equal (ulp 256) to each other.
+bool approximatelyEqualD(double ax, double ay, double bx, double by) {
+  if (approximatelyEqualT(ax, bx) && approximatelyEqualT(ay, by)) {
+    return true;
+  }
+  if (!roughlyEqualUlps(ax, bx) || !roughlyEqualUlps(ay, by)) {
+    return false;
+  }
+  final double dx = (ax - bx);
+  final double dy = (ay - by);
+  double dist = math.sqrt(dx * dx + dy * dy);
+  double tiniest = math.min(math.min(math.min(ax, bx), ay), by);
+  double largest = math.max(math.max(math.max(ax, bx), ay), by);
+  largest = math.max(largest, -tiniest);
+  return almostDequalUlps(largest, largest + dist);
+}
+
 /// Checks if 2 points are roughly equal (ulp 256) to each other.
 bool approximatelyEqual(double ax, double ay, double bx, double by) {
   if (approximatelyEqualT(ax, bx) && approximatelyEqualT(ay, by)) {
@@ -173,7 +229,7 @@ bool approximatelyEqual(double ax, double ay, double bx, double by) {
   double tiniest = math.min(math.min(math.min(ax, bx), ay), by);
   double largest = math.max(math.max(math.max(ax, bx), ay), by);
   largest = math.max(largest, -tiniest);
-  return almostDequalUlps(largest, largest + dist);
+  return almostPequalUlps(largest, largest + dist);
 }
 
 /// Equality check for comparing curve T values in the range of 0 to 1.
@@ -210,11 +266,24 @@ bool roughlyBetween(double a, double b, double c) =>
   a <= c ? roughlyNegative(a - b) && roughlyNegative(b - c)
       : roughlyNegative(b - a) && roughlyNegative(c - b);
 
+
+bool roughlyEqual(double x, double y) {
+  return (x - y).abs() < kRoughEpsilon;
+}
+
 bool roughlyEqualUlps(double a, double b) {
   const int kUlpsEpsilon = 256;
   const int kDUlpsEpsilon = 1024;
   return equalUlps(a, b, kUlpsEpsilon, kDUlpsEpsilon);
 }
+
+bool moreRoughlyEqual(double x, double y) => (x - y).abs() < kMoreRoughEpsilon;
+
+bool zeroOrOne(double x) => x == 0 || x == 1;
+
+bool preciselyZero(double x) => x.abs() < kDblEpsilonErr;
+
+bool preciselyEqual(double x, double y) => preciselyZero(x - y);
 
 bool dEqualUlpsEpsilon(double a, double b, int epsilon) {
   int aBits = floatAs2sCompliment(a);
@@ -256,6 +325,18 @@ bool equalUlpsPin(double a, double b, int epsilon, int depsilon) {
   return aBits < bBits + epsilon && bBits < aBits + epsilon;
 }
 
+bool dNotEqualUlps(double a, double b, int epsilon) {
+  int aBits = floatAs2sCompliment(a);
+  int bBits = floatAs2sCompliment(b);
+  // Find the difference in ULPs.
+  return aBits >= bBits + epsilon || bBits >= aBits + epsilon;
+}
+
+bool notAlmostDequalUlps(double a, double b) {
+  const int kUlpsEpsilon = 16;
+  return dNotEqualUlps(a, b, kUlpsEpsilon);
+}
+
 /// Checks if [x] is absolutely smaller than y scaled by epsilon.
 bool approximatelyZeroWhenComparedTo(double x, double y) {
   return x == 0 || x.abs() < (y * kFltEpsilon).abs();
@@ -270,6 +351,14 @@ bool preciselyNegative(double x) {
 bool preciselyBetween(double a, double b, double c) {
   return a <= c ? preciselyNegative(a - b) && preciselyNegative(b - c)
       : preciselyNegative(b - a) && preciselyNegative(c - b);
+}
+
+bool almostBetweenUlps(double a, double b, double c) {
+  const int kUlpsEpsilon = 2;
+  return a <= c ? lessOrEqualUlps(a, b, kUlpsEpsilon)
+      && lessOrEqualUlps(b, c, kUlpsEpsilon)
+      : lessOrEqualUlps(b, a, kUlpsEpsilon)
+      && lessOrEqualUlps(c, b, kUlpsEpsilon);
 }
 
 /// Calculates a value to scale coefficients of a quadratic equation
@@ -335,6 +424,23 @@ double _halleyCbrt3d(double d) {
   return _cbrtaHalleyd(a, d);
 }
 
+bool preciselyLessThanZero(double x) {
+  return x < kDblEpsilonErr;
+}
+
+bool preciselyGreaterThanOne(double x) {
+  return x > 1 - kDblEpsilonErr;
+}
+
+bool approximatelyOneOrLessDouble(double x) => x < 1 + kFltEpsilonDouble;
+
+bool approximatelyZeroOrMoreDouble(double x) => x > -kFltEpsilonDouble;
+
+// Pin T value between 0 and 1.
+double pinT(double t) {
+  return preciselyLessThanZero(t) ? 0 : preciselyGreaterThanOne(t) ? 1 : t;
+}
+
 const double kFltEpsilon = 1.19209290E-07; // == 1 / (2 ^ 23)
 const double kDblEpsilon = 2.22045e-16;
 const double kFltEpsilonCubed = kFltEpsilon * kFltEpsilon * kFltEpsilon;
@@ -357,4 +463,5 @@ const double kBumpEpsilon = kFltEpsilon * 4096;
 // Scalar max is based on 32 bit float since [PathRef] stores values in
 // Float32List.
 const double kScalarMax = 3.402823466e+38;
+const double kFltMax = 3.402823466e+38;
 const double kScalarMin = -kScalarMax;

@@ -49,7 +49,7 @@ const List<List<Offset>> notPointDegenerates = [
   [Offset(1 + kFltEpsilon * 8, 1), Offset(1 - kFltEpsilon * 8, 1), Offset(1, 1), Offset(1, 1)],
 ];
 
-int notPointDegenerates_count = notPointDegenerates.length;
+int notPointDegeneratesCount = notPointDegenerates.length;
 
 /// Source: http://www.truetex.com/bezint.htm
 const List<List<Offset>> testPoints = [
@@ -107,7 +107,7 @@ const List<List<Offset>> testPoints = [
 
 int testPointsCount = testPoints.length;
 
-const List<List<Offset>> lines = [
+const List<List<Offset>> cubicLines = [
   [Offset(0, 0), Offset(0, 0), Offset(0, 0), Offset(1, 0)],  // 0: horizontal
   [Offset(1, 0), Offset(0, 0), Offset(0, 0), Offset(0, 0)],
   [Offset(1, 0), Offset(2, 0), Offset(3, 0), Offset(4, 0)],
@@ -140,7 +140,7 @@ const List<List<Offset>> lines = [
   [Offset(2, 2), Offset(4, 4), Offset(3, 3), Offset(1, 1)],
 ];
 
-int linesCount = lines.length;
+int cubicLinesCount = cubicLines.length;
 
 // 'not a line' tries to fool the line detection code
 const List<List<Offset>> notLines = [

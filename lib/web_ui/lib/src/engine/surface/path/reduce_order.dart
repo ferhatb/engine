@@ -67,9 +67,9 @@ class ReduceOrder {
     }
     if (minXSet == 0x7 || minYSet == 0x7) {
       // A vertical line, horizontal line or point.
-      return _verticalOrHorizontalLine(points, target);
+      return _verticalOrHorizontalLineQuad(points, target);
     }
-    int result = _checkLinear(points, target);
+    int result = _checkLinearQuad(points, target);
     if (result != 0) {
       return _ReduceOrderResult.kLine;
     }
@@ -96,7 +96,7 @@ class ReduceOrder {
         ? _ReduceOrderResult.kPoint : _ReduceOrderResult.kLine;
   }
 
-  static int _verticalOrHorizontalLine(Float32List points,
+  static int _verticalOrHorizontalLineQuad(Float32List points,
       Float32List reduction) {
     reduction[0] = points[0];
     reduction[1] = points[1];
@@ -105,7 +105,7 @@ class ReduceOrder {
     return _reduceLine(reduction);
   }
 
-  static int _checkLinear(Float32List points, Float32List reduction) {
+  static int _checkLinearQuad(Float32List points, Float32List reduction) {
     if (!Quad.isLinear(points, 0, 2)) {
       return 0;
     }
@@ -146,6 +146,27 @@ class ReduceOrder {
     return _ReduceOrderResult.kQuad;
   }
 
+  static int _verticalOrHorizontalLineCubic(Float32List points,
+      Float32List reduction) {
+    reduction[0] = points[0];
+    reduction[1] = points[1];
+    reduction[2] = points[6];
+    reduction[3] = points[7];
+    return _reduceLine(reduction);
+  }
+
+  static int _checkLinearCubic(Float32List points, Float32List reduction) {
+    if (!Cubic.isLinear(points, 0, 3)) {
+      return 0;
+    }
+    // four are colinear: return line formed by outside
+    reduction[0] = points[0];
+    reduction[1] = points[1];
+    reduction[2] = points[6];
+    reduction[3] = points[7];
+    return _reduceLine(reduction);
+  }
+
   /// Reduce cubic curve to a quadratic or smaller.
   ///
   /// look for identical points
@@ -178,7 +199,7 @@ class ReduceOrder {
       }
     }
     final double minX = points[minXIndex];
-    final double minY = points[minXIndex + 1];
+    final double minY = points[minYIndex + 1];
     for (index = 0; index < 4; ++index) {
         double cx = points[index * 2];
         double cy = points[index * 2 + 1];
@@ -201,14 +222,14 @@ class ReduceOrder {
         if (minYSet == 0xF) {  // return 1 if all four are coincident
             return _coincidentLine(points, target);
         }
-        return _verticalOrHorizontalLine(points, target);
+        return _verticalOrHorizontalLineCubic(points, target);
     }
     if (minYSet == 0xF) {  // test for horizontal line
-        return _verticalOrHorizontalLine(points, target);
+        return _verticalOrHorizontalLineCubic(points, target);
     }
-    int result = _checkLinear(points, target);
+    int result = _checkLinearCubic(points, target);
     if (result != 0) {
-      return _ReduceOrderResult.kLine;
+      return result;
     }
     if (allowQuadratics &&
         (result = _checkQuadratic(points, target)) != 0) {
@@ -338,6 +359,22 @@ class Quad {
       }
     }
     return foundRoots;
+  }
+
+  /// Returns point on curve at T = [t].
+  ui.Offset ptAtT(double t) {
+    if (0 == t) {
+      return ui.Offset(points[0], points[1]);
+    }
+    if (1 == t) {
+      return ui.Offset(points[4], points[5]);
+    }
+    double one_t = 1 - t;
+    double a = one_t * one_t;
+    double b = 2 * one_t * t;
+    double c = t * t;
+    return ui.Offset(a * points[0] + b * points[2] + c * points[4],
+      a * points[1] + b * points[3] + c * points[5]);
   }
 }
 

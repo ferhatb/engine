@@ -130,6 +130,46 @@ class OpContour {
   bool? _xor;
 
   List<OpSegment> get debugSegments => _segments;
+
+  void complete() {
+    setBounds();
+    // Setup next pointers on segments.
+    for (int i = 0, len = _segments.length - 1; i < len; i++) {
+      _segments[i]._next = _segments[i + 1];
+    }
+  }
+
+  /// Updates bounds of contour based on segment bounds.
+  void setBounds() {
+    assert(count > 0);
+    OpSegment segment = _segments[0];
+    ui.Rect bounds = segment.bounds;
+    double minX = bounds.left;
+    double maxX = bounds.right;
+    double minY = bounds.top;
+    double maxY = bounds.bottom;
+    for (int i = 1; i < _segments.length; i++) {
+      segment = _segments[i];
+      bounds = segment.bounds;
+      if (bounds.left < minX) {
+        minX = bounds.left;
+      }
+      if (bounds.top < minY) {
+        minY = bounds.top;
+      }
+      if (bounds.right > maxX) {
+        maxX = bounds.right;
+      }
+      if (bounds.bottom > maxY) {
+        maxY = bounds.bottom;
+      }
+    }
+    _bounds = ui.Rect.fromLTRB(minX, minY, maxX, maxY);
+  }
+
+  ui.Rect get bounds => _bounds!;
+
+  ui.Rect? _bounds;
 }
 
 class OpSegment {
@@ -170,11 +210,19 @@ class OpSegment {
     return OpSegment(points, SPathVerb.kLine, parent, 1.0, bounds);
   }
 
+  bool get isHorizontal => bounds.top == bounds.bottom;
+
+  bool get isVertical => bounds.left == bounds.right;
+
+  /// Returns next segment in parent contour.
+  OpSegment? get next => _next;
+
   final Float32List points;
   final int verb;
   final OpContour parent;
   final double weight;
   final ui.Rect bounds;
+  OpSegment? _next;
 }
 
 /// Base class for segment span.
