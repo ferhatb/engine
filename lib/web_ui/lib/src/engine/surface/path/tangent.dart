@@ -105,8 +105,8 @@ void tangentConic(Float32List pts, double x, double y, double weight,
   int n = quadRoots.findRoots(A, 2 * B, C);
   for (int index = 0; index < n; ++index) {
     double t = index == 0 ? quadRoots.root0! : quadRoots.root1!;
-    double xt = _conicEvalNumerator(x0, x1, x2, weight, t) /
-        _conicEvalDenominator(weight, t);
+    double xt = Conic.conicEvalNumerator(x0, x1, x2, weight, t) /
+        Conic.conicEvalDenominator(weight, t);
     if (!_nearlyEqual(x, xt)) {
       continue;
     }

@@ -49,10 +49,10 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
               pts = ts.quadHorizontal(wnSegment.points, wtBounds.left,
                   wtBounds.right, wtBounds.top, wt.xFlipped);
               break;
-//            case _SegmentType.kConicSegment:
-//              pts = ts.conicHorizontal(wnSegment.points, wnSegment.weight, wtBounds.left,
-//                  wtBounds.right, wtBounds.top, wt.xFlipped);
-//              break;
+            case _SegmentType.kConicSegment:
+              pts = ts.conicHorizontal(wnSegment.points, wnSegment.weight, wtBounds.left,
+                  wtBounds.right, wtBounds.top, wt.xFlipped);
+              break;
 //            case _SegmentType.kCubicSegment:
 //              pts = ts.cubicHorizontal(wnSegment.points, wtBounds.left,
 //                  wtBounds.right, wtBounds.top, wt.xFlipped);
@@ -349,7 +349,17 @@ class Intersections {
   int fUsed = 0;
   int fSwap = 0;
   int fMax = 0;
-  bool fAllowNear = false;
+  bool fAllowNear = true;
+
+  Intersections() {
+    reset();
+  }
+
+  void reset() {
+    fAllowNear = true;
+    fUsed = 0;
+    fIsCoincident0 = fIsCoincident1 = 0;
+  }
 
   /// Insert t values of both curves at point [px],[py] into sorted list of
   /// T values.
@@ -383,10 +393,12 @@ class Intersections {
         // Remove this and re-insert below in case replacing would make list
         // unsorted.
         int remaining = fUsed - index - 1;
-        ptX.removeAt(index);
-        ptY.removeAt(index);
-        fT0.removeAt(index);
-        fT1.removeAt(index);
+        for (int rmIndex = index; rmIndex < (index + remaining); rmIndex++) {
+          ptX[index] = ptX[index + 1];
+          ptY[index] = ptY[index + 1];
+          fT0[index] = fT0[index + 1];
+          fT1[index] = fT1[index + 1];
+        }
         int clearMask = ~((1 << index) - 1);
         fIsCoincident0 -= (fIsCoincident0 >> 1) & clearMask;
         fIsCoincident1 -= (fIsCoincident1 >> 1) & clearMask;
@@ -407,16 +419,22 @@ class Intersections {
     }
     int remaining = fUsed - index;
     if (remaining > 0) {
-      ptX.insert(index, px);
-      ptY.insert(index, py);
-      fT0.insert(index, one);
-      fT1.insert(index, two);
+      for (int moveIndex = index + remaining - 1; moveIndex >= index; --moveIndex) {
+        ptX[moveIndex + 1] = ptX[moveIndex];
+        ptY[moveIndex + 1] = ptY[moveIndex];
+        fT0[moveIndex + 1] = fT0[moveIndex];
+        fT1[moveIndex + 1] = fT1[moveIndex];
+      }
+      ptX[index] = px;
+      ptY[index] = py;
+      fT0[index] = one;
+      fT1[index] = two;
       int clearMask = ~((1 << index) - 1);
       fIsCoincident0 += fIsCoincident0 & clearMask;
       fIsCoincident1 += fIsCoincident1 & clearMask;
     } else {
       ptX[index] = px;
-      ptY[index] = px;
+      ptY[index] = py;
     }
     if (one < 0 || one > 1) {
         return -1;
@@ -424,6 +442,8 @@ class Intersections {
     if (two < 0 || two > 1) {
         return -1;
     }
+    fT0[index] = one;
+    fT1[index] = two;
     ++fUsed;
     assert(fUsed <= kMaxPoints);
     return index;
@@ -725,13 +745,25 @@ class Intersections {
     if (remaining <= 0) {
       return;
     }
-    ptX.removeAt(index);
-    fT0.removeAt(index);
-    fT1.removeAt(index);
-    int coBit = fIsCoincident0 & (1 << index);
-    fIsCoincident0 -= ((fIsCoincident0 >> 1) & ~((1 << index) - 1)) + coBit;
-    assert(0 != (coBit ^ (fIsCoincident1 & (1 << index))));
-    fIsCoincident1 -= ((fIsCoincident1 >> 1) & ~((1 << index) - 1)) + coBit;
+    for (int rmIndex = index; rmIndex < (index + remaining); rmIndex++) {
+      ptX[index] = ptX[index + 1];
+      ptY[index] = ptY[index + 1];
+      fT0[index] = fT0[index + 1];
+      fT1[index] = fT1[index + 1];
+    }
+    if (index == 0) {
+      // Just shift right.
+      fIsCoincident0 = fIsCoincident0 >> 1;
+      fIsCoincident1 = fIsCoincident1 >> 1;
+    }
+    int leftMask = 0xFFFFFFFF << (index + 1);
+    int rightMask = (0xFFFFFFFF << index) ^ 0xFFFFFFFF;
+    fIsCoincident0 = ((fIsCoincident0 & leftMask) >> 1) | (fIsCoincident0 & rightMask);
+    fIsCoincident1 = ((fIsCoincident1 & leftMask) >> 1) | (fIsCoincident1 & rightMask);
+  }
+
+  void allowNear(bool allow) {
+    fAllowNear = allow;
   }
 
   /// Checks if end points have been added for curve one.
@@ -751,6 +783,30 @@ class Intersections {
     DLine line = DLine(left, y, right, y);
     final LineQuadraticIntersections q = LineQuadraticIntersections(points, line, this);
     return q.horizontalIntersect(y, left, right, flipped);
+  }
+
+  int conicHorizontal(Float32List points, double weight, double left,
+      double right, double y, bool flipped) {
+    Conic conic = Conic.fromPoints(points, weight);
+    fMax = 2;
+    DLine line = DLine(left, y, right, y);
+    final LineConicIntersections c = LineConicIntersections(conic, line, this);
+    return c.horizontalIntersect(y, left, right, flipped);
+  }
+
+  int conicVertical(Float32List points, double weight, double top,
+      double bottom, double x, bool flipped) {
+    Conic conic = Conic.fromPoints(points, weight);
+    fMax = 2;
+    DLine line = DLine(x, top, x, bottom);
+    final LineConicIntersections c = LineConicIntersections(conic, line, this);
+    return c.verticalIntersect(x, top, bottom, flipped);
+  }
+
+  int intersectConicWithLine(Conic conic, DLine line) {
+    final LineConicIntersections c = LineConicIntersections(conic, line, this);
+    c.allowNear(fAllowNear);
+    return c.intersect();
   }
 
   int intersectRayLine(DLine a, DLine b) {

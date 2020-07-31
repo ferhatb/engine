@@ -269,9 +269,8 @@ class PathWinding {
       xt = dir == 1 ? conic.p0x : conic.p2x;
     } else {
       final double root = quadRoots.root0!;
-      xt =
-          _conicEvalNumerator(conic.p0x, conic.p1x, conic.p2x, conic.fW, root) /
-              _conicEvalDenominator(conic.fW, root);
+      xt = Conic.conicEvalNumerator(conic.p0x, conic.p1x, conic.p2x, conic.fW, root) /
+          Conic.conicEvalDenominator(conic.fW, root);
     }
     if (_nearlyEqual(xt, x)) {
       if (x != conic.p2x || y != conic.p2y) {

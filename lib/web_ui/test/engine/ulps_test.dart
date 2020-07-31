@@ -114,5 +114,17 @@ void main() {
       expect(approximatelyZero(cubeRoot(200) - 5.8480354764257321), true);
       expect(approximatelyZero(cubeRoot(-5) - (-1.7099759466766968)), true);
     });
+
+    test('lessOrEqualUlps', () {
+      expect(lessOrEqualUlps(9.5359502e-7, 4.2268899e-14, 2), false);
+      expect(lessOrEqualUlps(4.2268899e-14, 5.08227985e-15, 2), true);
+      expect(lessOrEqualUlps(4.2268899e-14, 9.5359502e-7, 2), true);
+      expect(lessOrEqualUlps(5.08227985e-15, 4.2268899e-14, 2), true);
+    });
+
+    test('Almost between', () {
+      expect(almostBetweenUlps(9.5359502e-7, 4.2268899e-14, 5.08227985e-15), true);
+      expect(almostBetweenUlps(-60, -60 , -83), true);
+    });
   });
 }

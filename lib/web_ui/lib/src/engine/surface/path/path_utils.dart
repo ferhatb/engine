@@ -15,14 +15,15 @@ class SPathSegmentMask {
 
 /// Types of path operations.
 class SPathVerb {
-  static const int kMove = 1; // 1 point
-  static const int kLine = 2; // 2 points
-  static const int kQuad = 3; // 3 points
-  static const int kConic = 4; // 3 points + 1 weight
-  static const int kCubic = 5; // 4 points
-  static const int kClose = 6; // 0 points
+  static const int kMove = 0; // 1 point
+  static const int kLine = 1; // 2 points
+  static const int kQuad = 2; // 3 points
+  static const int kConic = 3; // 3 points + 1 weight
+  static const int kCubic = 4; // 4 points
+  static const int kClose = 5; // 0 points
 }
 
+/// Returns number of points - 1 for curve representing verb.
 int pathOpsVerbToPoints(int verb) => verb - ((verb + 1) >> 2);
 
 class SPath {

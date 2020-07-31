@@ -150,12 +150,12 @@ bool lessUlps(double a, double b, int epsilon) {
 
 bool lessOrEqualUlps(double a, double b, int epsilon) {
   if (_argumentsDenormalized(a, b, epsilon)) {
-    return a <= b - kFltEpsilon * epsilon;
+    return a < b + kFltEpsilon * epsilon;
   }
   int aBits = floatAs2sCompliment(a);
   int bBits = floatAs2sCompliment(b);
   // Find the difference in ULPs.
-  return aBits < bBits - epsilon;
+  return aBits < bBits + epsilon;
 }
 
 /// General equality check that covers between, product and division by using
@@ -439,6 +439,35 @@ bool approximatelyZeroOrMoreDouble(double x) => x > -kFltEpsilonDouble;
 // Pin T value between 0 and 1.
 double pinT(double t) {
   return preciselyLessThanZero(t) ? 0 : preciselyGreaterThanOne(t) ? 1 : t;
+}
+
+bool roughlyEqualPoints(double fX, double fY, double aX, double aY) {
+  if (roughlyEqual(fX, aX) && roughlyEqual(fY, aY)) {
+    return true;
+  }
+  double dx = fX - aX;
+  double dy = fY - aY;
+  double dist = math.sqrt(dx * dx + dy * dy);
+  double tiniest = math.min(math.min(math.min(fX, aX), fY), aY);
+  double largest = math.max(math.max(math.max(fX, aX), fY), aY);
+  largest = math.max(largest, -tiniest);
+  return roughlyEqualUlps(largest, largest + dist);
+}
+
+bool approximatelyEqualPoints(double aX, double aY, double bX, double bY) {
+  if (approximatelyEqualT(aX, bX) && approximatelyEqualT(aY, bY)) {
+    return true;
+  }
+  if (!roughlyEqualUlps(aX, bX) || !roughlyEqualUlps(aY, bY)) {
+    return false;
+  }
+  double dx = aX - bX;
+  double dy = aY - bY;
+  double dist = math.sqrt(dx * dx + dy * dy);
+  double tiniest = math.min(math.min(math.min(bX, aX), bY), aY);
+  double largest = math.max(math.max(math.max(bX, aX), bY), aY);
+  largest = math.max(largest, -tiniest);
+  return almostDequalUlps(largest, largest + dist);
 }
 
 const double kFltEpsilon = 1.19209290E-07; // == 1 / (2 ^ 23)

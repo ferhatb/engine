@@ -129,7 +129,7 @@ class DLine {
     // Calculate point at t.
     double one_t = 1 - t;
     double realX = t == 0 ? x0 : (t == 1 ? x1 : (one_t * x0 + t * x1));
-    double realY = t == 0 ? x0 : (t == 1 ? x1 : (one_t * x0 + t * x1));
+    double realY = t == 0 ? y0 : (t == 1 ? y1 : (one_t * y0 + t * y1));
     // Calculate distance between intersection and point.
     double dx = realX - x;
     double dy = realY - y;

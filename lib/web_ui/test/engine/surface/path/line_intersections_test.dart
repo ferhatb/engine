@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:ui/ui.dart' hide window;
 import 'package:ui/src/engine.dart';
@@ -11,6 +10,15 @@ import 'package:ui/src/engine.dart';
 
 void main() {
   group('Line intersections', () {
+    test('should intersect at least at one point with near allowed', () {
+      for (int index = 0; index < testCount; index++) {
+        List<List<Offset>> testCase = tests[index];
+        final DLine line1 = lineFromTestData(testCase, 0);
+        final DLine line2 = lineFromTestData(testCase, 1);
+        testOne(line1, line2, true);
+      }
+    });
+
     test('with one coincident', () {
       for (int index = 0; index < coincidentTestsCount; index++) {
         List<List<Offset>> testCase = coincidentTests[index];
@@ -18,6 +26,25 @@ void main() {
         final DLine line2 = lineFromTestData(testCase, 1);
         testOneCoincident(line1, line2);
       }
+    });
+
+    test('should not intersect', () {
+      for (int index = 0; index < noIntersectCount; index++) {
+        List<List<Offset>> testCase = noIntersect[index];
+        final DLine line1 = lineFromTestData(testCase, 0);
+        final DLine line2 = lineFromTestData(testCase, 1);
+        Intersections i = Intersections();
+        int pts = i.intersectLines(line1, line2);
+        assert(pts == 0);
+        assert(pts == i.fUsed);
+      }
+    });
+
+    test('should intersect (exact) at least at one point', () {
+      List<List<Offset>> testCase = tests[0];
+      final DLine line1 = lineFromTestData(testCase, 0);
+      final DLine line2 = lineFromTestData(testCase, 1);
+      testOne(line1, line2, false);
     });
   });
 }
@@ -44,39 +71,56 @@ void checkResults(DLine line1, DLine line2, Intersections ts, bool nearAllowed) 
   }
 }
 
-bool roughlyEqualPoints(double fX, double fY, double aX, double aY) {
-  if (roughlyEqual(fX, aX) && roughlyEqual(fY, aY)) {
-    return true;
-  }
-  double dx = fX - aX;
-  double dy = fY - aY;
-  double dist = math.sqrt(dx * dx + dy * dy);
-  double tiniest = math.min(math.min(math.min(fX, aX), fY), aY);
-  double largest = math.max(math.max(math.max(fX, aX), fY), aY);
-  largest = math.max(largest, -tiniest);
-  return roughlyEqualUlps(largest, largest + dist);
-}
-
-bool approximatelyEqualPoints(double aX, double aY, double bX, double bY) {
-  if (approximatelyEqualT(aX, bX) && approximatelyEqualT(aY, bY)) {
-    return true;
-  }
-  if (!roughlyEqualUlps(aX, bX) || !roughlyEqualUlps(aY, bY)) {
-    return false;
-  }
-  double dx = aX - bX;
-  double dy = aY - bY;
-  double dist = math.sqrt(dx * dx + dy * dy);
-  double tiniest = math.min(math.min(math.min(bX, aX), bY), aY);
-  double largest = math.max(math.max(math.max(bX, aX), bY), aY);
-  largest = math.max(largest, -tiniest);
-  return almostDequalUlps(largest, largest + dist); // is dist within ULPS tolerance?
+void testOne(DLine line1, DLine line2, bool nearAllowed) {
+    Intersections i = Intersections();
+    i.allowNear(nearAllowed);
+    int pts = i.intersectLines(line1, line2);
+    assert(pts != 0);
+    assert(pts == i.fUsed);
+    checkResults(line1, line2, i, nearAllowed);
+    if ((line1.x0 == line1.x1 && line1.y0 == line1.y1) ||
+        (line2.x0 == line2.x1 && line2.y0 == line2.y1)) {
+      return;
+    }
+    if (line1.y0 == line1.y1) {
+      // Horizontal.
+      double left = math.min(line1.x0, line1.x1);
+      double right = math.max(line1.x0, line1.x1);
+      Intersections ts = Intersections();
+      ts.horizontal(line2, left, right, line1.y0, line1.x0 != left);
+      checkResults(line2, line1, ts, false);
+    }
+    if (line2.y0 == line2.y1) {
+      // Line2 Horizontal.
+      double left = math.min(line2.x0, line2.x1);
+      double right = math.max(line2.x0, line2.x1);
+      Intersections ts = Intersections();
+      ts.horizontal(line1, left, right, line2.y0, line2.x0 != left);
+      checkResults(line1, line2, ts, false);
+    }
+    if (line1.x0 == line1.x1) {
+      // Vertical.
+      double top = math.min(line1.y0, line1.y1);
+      double bottom = math.max(line1.y0, line1.y1);
+      Intersections ts = Intersections();
+      ts.vertical(line2, top, bottom, line1.x0, line1.y0 != top);
+      checkResults(line2, line1, ts, false);
+    }
+    if (line2.x0 == line2.x1) {
+      // Second line vertical.
+      double top = math.min(line2.y0, line2.y1);
+      double bottom = math.max(line2.y0, line2.y1);
+      Intersections ts = Intersections();
+      ts.vertical(line1, top, bottom, line2.x0, line2.y0 != top);
+      checkResults(line1, line2, ts, false);
+    }
 }
 
 void testOneCoincident(DLine line1, DLine line2) {
-  Intersections ts;
+  Intersections ts = Intersections();
   int pts = ts.intersectLines(line1, line2);
-  assert(ts.fUsed == 2);
+  expect(pts, 2);
+  expect(pts, ts.fUsed);
   checkResults(line1, line2, ts, false);
   if ((line1.x0 == line1.x1 && line1.y0 == line1.y1) ||
       (line2.x0 == line2.x1 && line2.y0 == line2.y1)) {
@@ -86,7 +130,7 @@ void testOneCoincident(DLine line1, DLine line2) {
     // Horizontal.
     double left = math.min(line1.x0, line1.x1);
     double right = math.max(line1.x0, line1.x1);
-    Intersections ts;
+    Intersections ts = Intersections();
     ts.horizontal(line2, left, right, line1.y0, line1.x0 != left);
     assert(pts == 2);
     assert(2 == ts.fUsed);
@@ -96,7 +140,7 @@ void testOneCoincident(DLine line1, DLine line2) {
     // Line2 Horizontal.
     double left = math.min(line2.x0, line2.x1);
     double right = math.max(line2.x0, line2.x1);
-    Intersections ts;
+    Intersections ts = Intersections();
     ts.horizontal(line1, left, right, line2.y0, line2.x0 != left);
     assert(pts == 2);
     assert(2 == ts.fUsed);
@@ -106,7 +150,7 @@ void testOneCoincident(DLine line1, DLine line2) {
     // Vertical.
     double top = math.min(line1.y0, line1.y1);
     double bottom = math.max(line1.y0, line1.y1);
-    Intersections ts;
+    Intersections ts = Intersections();
     ts.vertical(line2, top, bottom, line1.x0, line1.y0 != top);
     assert(pts == 2);
     assert(pts == ts.fUsed);
@@ -116,7 +160,7 @@ void testOneCoincident(DLine line1, DLine line2) {
     // Second line vertical.
     double top = math.min(line2.y0, line2.y1);
     double bottom = math.max(line2.y0, line2.y1);
-    Intersections ts;
+    Intersections ts = Intersections();
     ts.vertical(line1, top, bottom, line2.x0, line2.y0 != top);
     assert(pts == 2);
     assert(pts == ts.fUsed);
@@ -126,7 +170,7 @@ void testOneCoincident(DLine line1, DLine line2) {
 
 DLine lineFromTestData(List<List<Offset>>testCase, int lineIndex) {
   List<Offset> lineData = testCase[lineIndex];
-  return DLine(lineData[0].dx, lineData[0].dy, lineData[1].dx, lineData[1].dy)
+  return DLine(lineData[0].dx, lineData[0].dy, lineData[1].dx, lineData[1].dy);
 }
 
 /// Test cases with pairs of lines.

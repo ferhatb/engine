@@ -669,7 +669,7 @@ class OpEdgeBuilder {
       // Add current verb and points.
       int pointIndex = _activePath.growForVerb(verb, verb == SPathVerb.kConic ? iter.conicWeight : 0);
       int pointCount = pathOpsVerbToPoints(verb);
-      for (int i = 0; i < pointCount; i++) {
+      for (int i = 0; i <= pointCount; i++) {
         _activePath.setPoint(pointIndex + i,
             points[(i + 1) * 2], points[(i + 1) * 2 + 1]);
       }

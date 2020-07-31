@@ -13,11 +13,14 @@ part of engine;
 /// Skia implementation reference:
 /// https://github.com/google/skia/blob/master/src/core/SkGeometry.cpp
 class Conic {
+
+  Conic(this.p0x, this.p0y, this.p1x, this.p1y, this.p2x, this.p2y, this.fW);
+
   double p0x, p0y, p1x, p1y, p2x, p2y;
   final double fW;
   static const int _maxSubdivisionCount = 5;
-
-  Conic(this.p0x, this.p0y, this.p1x, this.p1y, this.p2x, this.p2y, this.fW);
+  static const int kPointCount = 3;
+  static const int kPointLast = kPointCount - 1;
 
   factory Conic.fromPoints(Float32List points, double fW) {
     return Conic(points[0], points[1], points[2], points[3], points[4],
@@ -33,6 +36,25 @@ class Conic {
     points[4] = p2x;
     points[5] = p2y;
     return points;
+  }
+
+  /// Conic point x at curve point [index].
+  double xAt(int index) => index == 0 ? p0x : (index == 1 ? p1x : p2x);
+  double yAt(int index) => index == 0 ? p0y : (index == 1 ? p1y : p2y);
+
+  /// Point on curve at [t].
+  ui.Offset ptAtT(double t) {
+    if (t == 0) {
+      return ui.Offset(p0x, p0y);
+    }
+    if (t == 1) {
+      return ui.Offset(p2x, p2y);
+    }
+    double denominator = conicEvalDenominator(fW, t);
+    return ui.Offset(
+      conicEvalNumerator(p0x, p1x, p2x, fW, t) / denominator,
+      conicEvalNumerator(p0y, p1y, p2y, fW, t) / denominator
+    );
   }
 
   /// Returns array of points for the approximation of the conic as quad(s).
@@ -334,23 +356,25 @@ class Conic {
     _SkQuadCoefficients quadC = _SkQuadCoefficients(ax, ay, bx, by, cx, cy);
     return ui.Offset(quadC.evalX(t), quadC.evalY(t));
   }
-}
 
-double _conicEvalNumerator(
-    double p0, double p1, double p2, double w, double t) {
-  assert(t >= 0 && t <= 1);
-  final double src2w = p1 * w;
-  final C = p0;
-  final A = p2 - 2 * src2w + C;
-  final B = 2 * (src2w - C);
-  return polyEval(A, B, C, t);
-}
+  /// Denominator for calculating a point on the conic at [t].
+  static double conicEvalDenominator(double weight, double t) {
+    double B = 2 * (weight - 1);
+    double C = 1;
+    double A = -B;
+    return (A * t + B) * t + C;
+  }
 
-double _conicEvalDenominator(double w, double t) {
-  double B = 2 * (w - 1);
-  double C = 1;
-  double A = -B;
-  return polyEval(A, B, C, t);
+  /// Numerator for calculating a point on the conic at [t].
+  static double conicEvalNumerator(double p0, double p1, double p2,
+      double w, double t) {
+    assert(t >= 0 && t <= 1);
+    double src2w = p1 * w;
+    double C = p0;
+    double A = p2 - 2 * src2w + C;
+    double B = 2 * (src2w - C);
+    return (A * t + B) * t + C;
+  }
 }
 
 class _QuadBounds {
@@ -448,10 +472,10 @@ class _ConicBounds {
     if (n != 0) {
       final double t1 = roots.root0!;
       if ((t1 >= 0) && (t1 <= 1.0)) {
-        final double denom = _conicEvalDenominator(w, t1);
-        double numerator = _conicEvalNumerator(x1, cpX, x2, w, t1);
+        final double denom = Conic.conicEvalDenominator(w, t1);
+        double numerator = Conic.conicEvalNumerator(x1, cpX, x2, w, t1);
         final double extremaX = numerator / denom;
-        numerator = _conicEvalNumerator(y1, cpY, y2, w, t1);
+        numerator = Conic.conicEvalNumerator(y1, cpY, y2, w, t1);
         final double extremaY = numerator / denom;
         // Expand bounds.
         minX = math.min(minX, extremaX);
@@ -471,10 +495,10 @@ class _ConicBounds {
     if (n != 0) {
       final double t2 = roots.root0!;
       if ((t2 >= 0) && (t2 <= 1.0)) {
-        final double denom = _conicEvalDenominator(w, t2);
-        double numerator = _conicEvalNumerator(x1, cpX, x2, w, t2);
+        final double denom = Conic.conicEvalDenominator(w, t2);
+        double numerator = Conic.conicEvalNumerator(x1, cpX, x2, w, t2);
         final double extrema2X = numerator / denom;
-        numerator = _conicEvalNumerator(y1, cpY, y2, w, t2);
+        numerator = Conic.conicEvalNumerator(y1, cpY, y2, w, t2);
         final double extrema2Y = numerator / denom;
         // Expand bounds.
         minX = math.min(minX, extrema2X);
