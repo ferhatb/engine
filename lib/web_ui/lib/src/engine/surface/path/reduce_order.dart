@@ -74,7 +74,7 @@ class ReduceOrder {
       return ReduceOrderResult.kLine;
     }
     if (target != points) {
-      for (int i = 0; i < (Quad.kMaxPoints * 2); i++) {
+      for (int i = 0; i < (Quad.kPointCount * 2); i++) {
         target[i] = points[i];
       }
     }

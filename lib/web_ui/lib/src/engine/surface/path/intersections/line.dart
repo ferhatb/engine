@@ -51,9 +51,7 @@ class DLine {
     double t = (px - left) / (right - left);
     t = pinT(t);
     double realPtX = (1 - t) * left + t * right;
-    double dx = px - realPtX;
-    double dy = py - y;
-    double dist = math.sqrt(dx * dx + dy * dy);
+    double dist = math.sqrt(distanceSquared(px, py, realPtX, y));
     double tiniest = math.min(math.min(y, left), right);
     double largest = math.max(math.max(y, left), right);
     largest = math.max(largest, -tiniest);
@@ -86,9 +84,7 @@ class DLine {
     t = pinT(t);
     assert(SPath.between(0, t, 1));
     double realPtY = (1 - t) * top + t * bottom;
-    double dx = px - x;
-    double dy = py - realPtY;
-    double dist = math.sqrt(dx * dx + dy * dy);
+    double dist = math.sqrt(distanceSquared(px, py, x, realPtY));
     double tiniest = math.min(math.min(x, top), bottom);
     double largest = math.max(math.max(x, top), bottom);
     largest = math.max(largest, -tiniest);
@@ -131,9 +127,7 @@ class DLine {
     double realX = t == 0 ? x0 : (t == 1 ? x1 : (one_t * x0 + t * x1));
     double realY = t == 0 ? y0 : (t == 1 ? y1 : (one_t * y0 + t * y1));
     // Calculate distance between intersection and point.
-    double dx = realX - x;
-    double dy = realY - y;
-    double dist = math.sqrt(dx * dx + dy * dy);
+    double dist = math.sqrt(distanceSquared(realX, realY, x, y));
     // Find the ordinal in the original line with the largest unsigned exponent.
     double tiniest = math.min(math.min(math.min(x0, y0), x1), y1);
     double largest = math.max(math.max(math.max(x0, y0), x1), y1);
@@ -150,4 +144,5 @@ class DLine {
 
   double ptAtTx(double t) => t == 0 ? x0 : (t == 1 ? x1 : (x0 * (1 - t) + x1 * t));
   double ptAtTy(double t) => t == 0 ? y0 : (t == 1 ? y1 : (y0 * (1 - t) + y1 * t));
+  ui.Offset ptAtT(double t) => ui.Offset(ptAtTx(t), ptAtTy(t));
 }

@@ -26,7 +26,7 @@ void tangentLine(
   tangents.add(ui.Offset(dx, dy));
 }
 
-/// Computes tangent at point x,y on a quadratic curve.
+/// Computes tangents at point x,y on a quadratic curve.
 void tangentQuad(
     Float32List pts, double x, double y, List<ui.Offset> tangents) {
   final double y0 = pts[1];
@@ -77,7 +77,7 @@ ui.Offset _evalQuadTangentAt(double x0, double y0, double x1, double y1,
   return ui.Offset(tx * 2, ty * 2);
 }
 
-/// Computes tangent at point x,y on a conic curve.
+/// Computes tangents at point x,y on a conic curve.
 void tangentConic(Float32List pts, double x, double y, double weight,
     List<ui.Offset> tangents) {
   final double y0 = pts[1];
@@ -111,11 +111,11 @@ void tangentConic(Float32List pts, double x, double y, double weight,
       continue;
     }
     Conic conic = Conic(x0, y0, x1, y1, x2, y2, weight);
-    tangents.add(conic.evalTangentAt(t));
+    tangents.add(conic.dxdyAtT(t));
   }
 }
 
-/// Computes tangent at point x,y on a cubic curve.
+/// Computes tangents at point x,y on a cubic curve.
 void tangentCubic(
     Float32List pts, double x, double y, List<ui.Offset> tangents) {
   final double y3 = pts[7];

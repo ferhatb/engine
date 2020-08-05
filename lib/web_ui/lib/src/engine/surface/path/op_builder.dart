@@ -512,12 +512,9 @@ bool _op(SurfacePath one, SurfacePath two, int op, SurfacePath result) {
 }
 
 class OpGlobalState {
-}
-
-class OpCoincidence {
-  OpCoincidence(this.globalState);
-
-  OpGlobalState globalState;
+  OpCoincidence? _fCoincidence;
+  /// Used to call fixUp when an [OpSpan] is released.
+  OpCoincidence? get coincidence => _fCoincidence;
 }
 
 abstract class SPathOpsMask {
@@ -551,13 +548,14 @@ enum OpPhase {
 ///  mask.
 class OpEdgeBuilder {
 
-  OpEdgeBuilder(this.path, this.globalState, {this.allowOpenContours = false}) {
+  OpEdgeBuilder(this.path, OpGlobalState state, {this.allowOpenContours = false}) :
+    globalState = state, contourBuilder = OpContourBuilder(state) {
     init();
   }
 
   final SurfacePath path;
   final OpGlobalState globalState;
-  final OpContourBuilder contourBuilder = OpContourBuilder();
+  final OpContourBuilder contourBuilder;
   final List<OpContour> contourList = [];
   OpContour? fContoursHead;
   List<int> fXorMask = [SPathOpsMask.kNo_Path, SPathOpsMask.kNo_Path];

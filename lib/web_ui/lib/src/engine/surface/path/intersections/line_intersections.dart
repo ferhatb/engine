@@ -6,34 +6,41 @@
 part of engine;
 
 class LineQuadraticIntersections {
-  final Intersections intersections;
+  final Intersections i;
+  final Quad quad;
   final Float32List quadPoints;
   final DLine line;
   bool fAllowNear = false;
 
-  LineQuadraticIntersections(this.quadPoints, this.line, this.intersections);
+  LineQuadraticIntersections._(this.quad, this.quadPoints, this.line, this.i);
+
+  factory LineQuadraticIntersections(Quad quad, DLine line, Intersections i)
+    => LineQuadraticIntersections._(quad, quad.points, line, i);
+
+  void allowNear(bool allow) {
+    fAllowNear = allow;
+  }
 
   void checkCoincident() {
-    int last = intersections.fUsed - 1;
-    Quad quad = Quad(quadPoints);
+    int last = i.fUsed - 1;
     for (int index = 0; index < last;) {
-      double quadMidT = (intersections.fT0[index] + intersections.fT0[index + 1]) / 2;
+      double quadMidT = (i.fT0[index] + i.fT0[index + 1]) / 2;
       final ui.Offset quadMidPt = quad.ptAtT(quadMidT);
       double t = line.nearPoint(quadMidPt.dx, quadMidPt.dy);
       if (t < 0) {
         ++index;
         continue;
       }
-      if (intersections.isCoincident(index)) {
-        intersections.removeOne(index);
+      if (i.isCoincident(index)) {
+        i.removeOne(index);
         --last;
-      } else if (intersections.isCoincident(index + 1)) {
-        intersections.removeOne(index + 1);
+      } else if (i.isCoincident(index + 1)) {
+        i.removeOne(index + 1);
         --last;
       } else {
-        intersections.setCoincident(index++);
+        i.setCoincident(index++);
       }
-      intersections.setCoincident(index);
+      i.setCoincident(index);
     }
   }
 
@@ -63,10 +70,40 @@ class LineQuadraticIntersections {
     return Quad.rootsValidT(A, 2 * B, C, roots);
   }
 
-  int horizontalIntersect(double axisIntercept, double left, double right, bool flipped) {
-    addExactHorizontalEndPoints(left, right, axisIntercept);
+  int intersect() {
+    _addExactEndPoints();
     if (fAllowNear) {
-      addNearHorizontalEndPoints(left, right, axisIntercept);
+      _addNearEndPoints();
+    }
+    List<double> roots = [];
+    int count = intersectRay(roots);
+    for (int index = 0; index < count; ++index) {
+      double quadT = roots[index];
+      double lineT = findLineT(quadT);
+      ui.Offset pt = quad.ptAtT(quadT);
+      final _QuadPin quadPin = _QuadPin(this, quadT, lineT, pt, true);
+      if (quadPin.pinned && uniqueAnswer(quadT, pt.dx, pt.dy)) {
+        i.insert(quadT, lineT, pt.dx, pt.dy);
+      }
+    }
+    checkCoincident();
+    return i.fUsed;
+  }
+
+  double findLineT(double t) {
+    ui.Offset xy = quad.ptAtT(t);
+    double dx = line.x1 - line.x0;
+    double dy = line.y1 - line.y0;
+    if (dx.abs() > dy.abs()) {
+      return (xy.dx - line.x0) / dx;
+    }
+    return (xy.dy - line.y0) / dy;
+  }
+
+  int horizontalIntersect(double axisIntercept, double left, double right, bool flipped) {
+    _addExactHorizontalEndPoints(left, right, axisIntercept);
+    if (fAllowNear) {
+      _addNearHorizontalEndPoints(left, right, axisIntercept);
     }
     List<double> rootVals = [];
     int roots = computeHorizontalIntersect(axisIntercept, rootVals);
@@ -80,25 +117,222 @@ class LineQuadraticIntersections {
         lineT = quadPin.lineT;
         pt = quadPin.pt;
         if (isUniqueAnswer(quadT, pt)) {
-          intersections.insert(quadT, lineT, pt.dx, pt.dy);
+          i.insert(quadT, lineT, pt.dx, pt.dy);
         }
       }
     }
     if (flipped) {
-      intersections.flip();
+      i.flip();
     }
     checkCoincident();
-    return intersections.fUsed;
+    return i.fUsed;
+  }
+
+  int _verticalIntersect(double axisIntercept, List<double> roots) {
+    double D = quadPoints[4];  // f
+    double E = quadPoints[2];  // e
+    double F = quadPoints[0];  // d
+    D += F - 2 * E;         // D = d - 2*e + f
+    E -= F;                 // E = -(d - e)
+    F -= axisIntercept;
+    return Quad.rootsValidT(D, 2 * E, F, roots);
+  }
+
+  int verticalIntersect(double axisIntercept, double top, double bottom, bool flipped) {
+      _addExactVerticalEndPoints(top, bottom, axisIntercept);
+      if (fAllowNear) {
+          _addNearVerticalEndPoints(top, bottom, axisIntercept);
+      }
+      List<double> roots = [];
+      int count = _verticalIntersect(axisIntercept, roots);
+      for (int index = 0; index < count; ++index) {
+        double quadT = roots[index];
+        ui.Offset pt = quad.ptAtT(quadT);
+        double lineT = (pt.dy - top) / (bottom - top);
+        _CurveLinePinT pinResult = pinTs(quadT, lineT, pt.dx, pt.dy);
+        pt = ui.Offset(pinResult.px, pinResult.py);
+        quadT = pinResult.curveT;
+        lineT = pinResult.lineT;
+        if (pinResult.success && uniqueAnswer(quadT, pt.dx, pt.dy)) {
+          i.insert(quadT, lineT, pt.dx, pt.dy);
+        }
+      }
+      if (flipped) {
+          i.flip();
+      }
+      checkCoincident();
+      return i.fUsed;
+  }
+
+  _CurveLinePinT pinTs(double curveT, double lineT, double px, double py) {
+    _CurveLinePinT result = _CurveLinePinT(curveT, lineT, px, py);
+    if (!approximatelyOneOrLess(lineT)) {
+      return result;
+    }
+    if (!approximatelyZeroOrMoreDouble(lineT)) {
+      return result;
+    }
+    double qT = curveT = pinT(curveT);
+    double lT = lineT = pinT(lineT);
+    if (lT == 0 || lT == 1) {
+      result.px = line.ptAtTx(lT);;
+      result.py = line.ptAtTy(lT);;
+    } else if (qT != curveT) {
+      ui.Offset qPt = quad.ptAtT(qT);
+      result.px = qPt.dx;
+      result.py = qPt.dy;
+    }
+    double gridPx = px;
+    double gridPy = py;
+    if (approximatelyEqual(gridPx, gridPy, line.x0, line.y0)) {
+      result.px = line.x0;
+      result.py = line.y0;
+      result.lineT = 0;
+    } else if (approximatelyEqual(gridPx, gridPy, line.x1, line.y1)) {
+      result.px = line.x1;
+      result.py = line.y1;
+      result.lineT = 1;
+    }
+    if (i.fUsed > 0 && approximatelyEqualT(i.fT1[0], lineT)) {
+      return result;
+    }
+    double p0x = quadPoints[0];
+    double p0y = quadPoints[1];
+    double p2x = quadPoints[4];
+    double p2y = quadPoints[5];
+    if (gridPx == p0x && gridPy == p0y) {
+      result.px = p0x;
+      result.py = p0y;
+      result.curveT = 0;
+    } else if (gridPx == p2x && gridPy == p2y) {
+      result.px = p2x;
+      result.py = p2y;
+      result.curveT = 1;
+    }
+    return result;
+  }
+
+  /// Check if conicT or (existingT to conicT midpoint) is already in
+  /// intersections within tolerance.
+  bool uniqueAnswer(double cubicT, double px, double py) {
+    for (int inner = 0; inner < i.fUsed; ++inner) {
+      if (i.ptX[inner] != px || i.ptY[inner] != py) {
+        continue;
+      }
+      double existingQuadT = i.fT0[inner];
+      if (cubicT == existingQuadT) {
+        return false;
+      }
+      // check if midway on conic is also same point. If so, discard this
+      double quadMidT = (existingQuadT + cubicT) / 2;
+      ui.Offset quadMidPt = quad.ptAtT(quadMidT);
+      if (approximatelyEqualPoints(quadMidPt.dx, quadMidPt.dy, px, py)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Add endpoints first to get zero and one t values exactly.
+  void _addExactEndPoints() {
+    for (int qIndex = 0; qIndex < Quad.kPointCount; qIndex += Quad.kPointLast) {
+      final double px = quad.xAt(qIndex);
+      final double py = quad.yAt(qIndex);
+      double lineT = line.exactPoint(px, py);
+      if (lineT < 0) {
+        continue;
+      }
+      double cubicT = (qIndex >> 1).toDouble();
+      i.insert(cubicT, lineT, px, py);
+    }
+  }
+
+  /// Note that this does not look for endpoints of the line that are near the cubic.
+  /// These points are found later when check ends looks for missing points.
+  void _addNearEndPoints() {
+    for (int cIndex = 0; cIndex < Quad.kPointCount; cIndex += Quad.kPointLast) {
+      double curveT = (cIndex >> 1).toDouble();
+      if (i.hasT(curveT)) {
+        continue;
+      }
+      final double px = quad.xAt(cIndex);
+      final double py = quad.yAt(cIndex);
+      double lineT = line.nearPoint(px, py);
+      if (lineT < 0) {
+        continue;
+      }
+      i.insert(curveT, lineT, px, py);
+    }
+    _addLineNearEndPoints();
+  }
+
+  void _addLineNearEndPoints() {
+    if (!i.hasOppT(0)) {
+      double curveT = CurveDistance.nearPoint(
+          quadPoints,
+          SPathVerb.kQuad,
+          1.0,
+          line.x0,
+          line.y0,
+          line.x1,
+          line.y1);
+      if (curveT >= 0) {
+        i.insert(curveT, 0, line.x0, line.y0);
+      }
+    }
+    if (!i.hasOppT(1)) {
+      double curveT = CurveDistance.nearPoint(
+          quadPoints,
+          SPathVerb.kQuad,
+          1.0,
+          line.x1,
+          line.y1,
+          line.x0,
+          line.y0);
+      if (curveT >= 0) {
+        i.insert(curveT, 1, line.x1, line.y1);
+      }
+    }
+  }
+
+  void _addExactVerticalEndPoints(double top, double bottom, double x) {
+    for (int qIndex = 0; qIndex < Quad.kPointCount; qIndex += Quad.kPointLast) {
+      final double px = quad.xAt(qIndex);
+      final double py = quad.yAt(qIndex);
+      double lineT = DLine.exactPointV(px, py, top, bottom, x);
+      if (lineT < 0) {
+        continue;
+      }
+      double curveT = (qIndex >> 1).toDouble();
+      i.insert(curveT, lineT, px, py);
+    }
+  }
+
+  void _addNearVerticalEndPoints(double top, double bottom, double x) {
+    for (int qIndex = 0; qIndex < Quad.kPointCount; qIndex += Quad.kPointLast) {
+      double quadT = (qIndex >> 1).toDouble();
+      if (i.hasT(quadT)) {
+        continue;
+      }
+      final double px = quad.xAt(qIndex);
+      final double py = quad.yAt(qIndex);
+      double lineT = DLine.nearPointV(px, py, top, bottom, x);
+      if (lineT < 0) {
+        continue;
+      }
+      i.insert(quadT, lineT, px, py);
+    }
+    _addLineNearEndPoints();
   }
 
   /// Check if quadT and point already exists in intersections.
   bool isUniqueAnswer(double quadT, ui.Offset pt) {
-    for (int inner = 0; inner < intersections.fUsed; ++inner) {
-      if (intersections.ptX[inner] != pt.dx || intersections.ptY[inner] != pt.dy) {
+    for (int inner = 0; inner < i.fUsed; ++inner) {
+      if (i.ptX[inner] != pt.dx || i.ptY[inner] != pt.dy) {
         // Not same point, move to next.
         continue;
       }
-      double existingQuadT = intersections.fT0[inner];
+      double existingQuadT = i.fT0[inner];
       if (quadT == existingQuadT) {
         // Already contains same point and t value, not unique.
         return false;
@@ -123,27 +357,7 @@ class LineQuadraticIntersections {
     return Quad.rootsValidT(D, 2 * E, F, roots);
   }
 
-  void addLineNearEndPoints() {
-    for (int lIndex = 0; lIndex < 2; ++lIndex) {
-      double lineT = lIndex.toDouble();
-      if (intersections.hasOppT(lineT)) {
-        continue;
-      }
-      final double lineStartX = lIndex == 0 ? line.x0 : line.x1;
-      final double lineStartY = lIndex == 0 ? line.y0 : line.y1;
-      double quadT = lIndex == 0
-          ? Curve.nearPoint(quadPoints, SPathVerb.kQuad, 1,
-          lineStartX, lineStartY, line.x1, line.y1)
-          : Curve.nearPoint(quadPoints, SPathVerb.kQuad, 1,
-          lineStartX, lineStartY, line.x0, line.y0);
-      if (quadT < 0) {
-        continue;
-      }
-      intersections.insert(quadT, lineT, lineStartX, lineStartY);
-    }
-  }
-
-  void addExactHorizontalEndPoints(double left, double right, double y) {
+  void _addExactHorizontalEndPoints(double left, double right, double y) {
     for (int qIndex = 0; qIndex < 3; qIndex += 2) {
       double qx = quadPoints[qIndex * 2];
       double qy = quadPoints[qIndex * 2 + 1];
@@ -152,14 +366,14 @@ class LineQuadraticIntersections {
         continue;
       }
       double quadT = (qIndex >> 1).toDouble();
-      intersections.insert(quadT, lineT, qx, qy);
+      i.insert(quadT, lineT, qx, qy);
     }
   }
 
-  void addNearHorizontalEndPoints(double left, double right, double y) {
+  void _addNearHorizontalEndPoints(double left, double right, double y) {
     for (int qIndex = 0; qIndex < 3; qIndex += 2) {
       double quadT = (qIndex >> 1).toDouble();
-      if (intersections.hasT(quadT)) {
+      if (i.hasT(quadT)) {
         continue;
       }
       final double qx = quadPoints[qIndex * 2];
@@ -168,9 +382,9 @@ class LineQuadraticIntersections {
       if (lineT < 0) {
         continue;
       }
-      intersections.insert(quadT, lineT, qx, qy);
+      i.insert(quadT, lineT, qx, qy);
     }
-    addLineNearEndPoints();
+    _addLineNearEndPoints();
   }
 }
 
@@ -197,7 +411,7 @@ class _QuadPin {
       pt = ui.Offset(i.line.x1, i.line.y1);
       lineT = 1;
     }
-    if (i.intersections.fUsed > 0 && approximatelyEqualT(i.intersections.fT1[0],
+    if (i.i.fUsed > 0 && approximatelyEqualT(i.i.fT1[0],
         lineT)) {
       return _QuadPin._(quadT, lineT, pt, false);
     }
@@ -232,6 +446,29 @@ class LineConicIntersections {
     fAllowNear = allow;
   }
 
+  void checkCoincident() {
+    int last = i.fUsed - 1;
+    for (int index = 0; index < last; ) {
+      double conicMidT = (i.fT0[index] + i.fT0[index + 1]) / 2;
+      ui.Offset conicMidPt = conic.ptAtT(conicMidT);
+      double t = line.nearPoint(conicMidPt.dx, conicMidPt.dy);
+      if (t < 0) {
+        ++index;
+        continue;
+      }
+      if (i.isCoincident(index)) {
+        i.removeOne(index);
+        --last;
+      } else if (i.isCoincident(index + 1)) {
+        i.removeOne(index + 1);
+        --last;
+      } else {
+        i.setCoincident(index++);
+      }
+      i.setCoincident(index);
+    }
+  }
+
   int _horizontalIntersect(double axisIntercept, List<double> roots) {
     return validT(conic.p0y, conic.p1y, conic.p2y, axisIntercept, roots);
   }
@@ -249,9 +486,9 @@ class LineConicIntersections {
 
   /// For general line intersect with conic (non horizontal/vertical).
   int intersect() {
-    addExactEndPoints();
+    _addExactEndPoints();
     if (fAllowNear) {
-      addNearEndPoints();
+      _addNearEndPoints();
     }
     List<double> rootVals = [];
     int roots = intersectRay(rootVals);
@@ -259,9 +496,9 @@ class LineConicIntersections {
       double conicT = rootVals[index];
       double lineT = findLineT(conicT);
       ui.Offset pt = conic.ptAtT(conicT);
-      _ConicPinT pinResult = pinTs(conicT, lineT, pt.dx, pt.dy);
+      _CurveLinePinT pinResult = pinTs(conicT, lineT, pt.dx, pt.dy);
       pt = ui.Offset(pinResult.px, pinResult.py);
-      conicT = pinResult.conicT;
+      conicT = pinResult.curveT;
       lineT = pinResult.lineT;
       if (pinResult.success && uniqueAnswer(conicT, pt.dx, pt.dy)) {
         i.insert(conicT, lineT, pt.dx, pt.dy);
@@ -307,9 +544,9 @@ class LineConicIntersections {
       ui.Offset pt = conic.ptAtT(conicT);
       assert(closeTo(pt.dy, axisIntercept, conic.p0y, conic.p1y, conic.p2y));
       double lineT = (pt.dx - left) / (right - left);
-      _ConicPinT pinResult = pinTs(conicT, lineT, pt.dx, pt.dy);
+      _CurveLinePinT pinResult = pinTs(conicT, lineT, pt.dx, pt.dy);
       pt = ui.Offset(pinResult.px, pinResult.py);
-      conicT = pinResult.conicT;
+      conicT = pinResult.curveT;
       lineT = pinResult.lineT;
       if (pinResult.success && uniqueAnswer(conicT, pt.dx, pt.dy)) {
         i.insert(conicT, lineT, pt.dx, pt.dy);
@@ -338,9 +575,9 @@ class LineConicIntersections {
       ui.Offset pt = conic.ptAtT(conicT);
       assert(closeTo(pt.dx, axisIntercept, conic.p0x, conic.p1x, conic.p2x));
       double lineT = (pt.dy - top) / (bottom - top);
-      _ConicPinT pinResult = pinTs(conicT, lineT, pt.dx, pt.dy);
+      _CurveLinePinT pinResult = pinTs(conicT, lineT, pt.dx, pt.dy);
       pt = ui.Offset(pinResult.px, pinResult.py);
-      conicT = pinResult.conicT;
+      conicT = pinResult.curveT;
       lineT = pinResult.lineT;
       if (pinResult.success && uniqueAnswer(conicT, pt.dx, pt.dy)) {
         i.insert(conicT, lineT, pt.dx, pt.dy);
@@ -381,7 +618,7 @@ class LineConicIntersections {
       }
       i.insert(conicT, lineT, px, py);
     }
-    addLineNearEndPoints();
+    _addLineNearEndPoints();
   }
 
   void addExactHorizontalEndPoints(double left, double right, double y) {
@@ -411,19 +648,19 @@ class LineConicIntersections {
       }
       i.insert(conicT, lineT, px, py);
     }
-    addLineNearEndPoints();
+    _addLineNearEndPoints();
   }
 
-  void addLineNearEndPoints() {
+  void _addLineNearEndPoints() {
     if (!i.hasOppT(0)) {
-      double conicT = Curve.nearPoint(conic.toPoints(),
+      double conicT = CurveDistance.nearPoint(conic.toPoints(),
           SPathVerb.kConic, conic.fW, line.x0, line.y0, line.x1, line.y1);
       if (conicT >= 0) {
         i.insert(conicT, 0, line.x0, line.y0);
       }
     }
     if (!i.hasOppT(1)) {
-      double conicT = Curve.nearPoint(conic.toPoints(),
+      double conicT = CurveDistance.nearPoint(conic.toPoints(),
           SPathVerb.kConic, conic.fW, line.x1, line.y1, line.x0, line.y0);
       if (conicT >= 0) {
         i.insert(conicT, 1, line.x1, line.y1);
@@ -431,7 +668,7 @@ class LineConicIntersections {
     }
   }
 
-  void addExactEndPoints() {
+  void _addExactEndPoints() {
     for (int cIndex = 0; cIndex < Conic.kPointCount;
     cIndex += Conic.kPointLast) {
       final double px = conic.xAt(cIndex);
@@ -445,7 +682,7 @@ class LineConicIntersections {
     }
   }
 
-  void addNearEndPoints() {
+  void _addNearEndPoints() {
     for (int cIndex = 0; cIndex < Conic.kPointCount; cIndex += Conic.kPointLast) {
       double conicT = (cIndex >> 1).toDouble();
       if (i.hasT(conicT)) {
@@ -459,26 +696,26 @@ class LineConicIntersections {
       }
       i.insert(conicT, lineT, px, py);
     }
-    addLineNearEndPoints();
+    _addLineNearEndPoints();
   }
 
   /// If point is close to end points of conic or line pin T values to 0 and 1.
   ///
   /// px,py should be initialized to point on curve at conicT.
-  _ConicPinT pinTs(double conicT, double lineT, double px, double py) {
-    _ConicPinT result = _ConicPinT(conicT, lineT, px, py);
+  _CurveLinePinT pinTs(double curveT, double lineT, double px, double py) {
+    _CurveLinePinT result = _CurveLinePinT(curveT, lineT, px, py);
     if (!approximatelyOneOrLess(lineT)) {
       return result;
     }
     if (!approximatelyZeroOrMoreDouble(lineT)) {
       return result;
     }
-    double qT = conicT = pinT(conicT);
+    double qT = curveT = pinT(curveT);
     double lT = lineT = pinT(lineT);
     if (lT == 0 || lT == 1) {
       result.px = line.ptAtTx(lT);
       result.py = line.ptAtTy(lT);
-    } else if (qT != conicT) {
+    } else if (qT != curveT) {
       // Adjust to pinned T value.
       ui.Offset offset = conic.ptAtT(qT);
       result.px = offset.dx;
@@ -501,11 +738,11 @@ class LineConicIntersections {
     if (gridPx == conic.p0x && gridPy == conic.p0y) {
       result.px = conic.p0x;
       result.py = conic.p0y;
-      result.conicT = 0;
+      result.curveT = 0;
     } else if (gridPx == conic.p2x && gridPy == conic.p2y) {
       result.px = conic.p2x;
       result.py = conic.p2y;
-      result.conicT = 1;
+      result.curveT = 1;
     }
     result.success = true;
     return result;
@@ -532,29 +769,6 @@ class LineConicIntersections {
     return true;
   }
 
-  void checkCoincident() {
-    int last = i.fUsed - 1;
-    for (int index = 0; index < last; ) {
-      double conicMidT = (i.fT0[index] + i.fT0[index + 1]) / 2;
-      ui.Offset conicMidPt = conic.ptAtT(conicMidT);
-      double t = line.nearPoint(conicMidPt.dx, conicMidPt.dy);
-      if (t < 0) {
-        ++index;
-        continue;
-      }
-      if (i.isCoincident(index)) {
-        i.removeOne(index);
-        --last;
-      } else if (i.isCoincident(index + 1)) {
-        i.removeOne(index + 1);
-        --last;
-      } else {
-        i.setCoincident(index++);
-      }
-      i.setCoincident(index);
-    }
-  }
-
   /// Used to validate distance between points is zero taking into account
   /// magnitude of curve for debug builds.
   static bool closeTo(double a, double b, double c0, double c1, double c2) {
@@ -564,10 +778,11 @@ class LineConicIntersections {
   }
 }
 
-class _ConicPinT {
-  _ConicPinT(this.conicT, this.lineT, this.px, this.py);
+class _CurveLinePinT {
+  _CurveLinePinT(this.curveT, this.lineT, this.px, this.py);
   double px, py;
   double lineT;
-  double conicT;
+  double curveT;
   bool success = false;
 }
+

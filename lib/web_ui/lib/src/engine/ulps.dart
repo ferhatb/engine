@@ -208,7 +208,7 @@ bool approximatelyEqualD(double ax, double ay, double bx, double by) {
   }
   final double dx = (ax - bx);
   final double dy = (ay - by);
-  double dist = math.sqrt(dx * dx + dy * dy);
+  double dist = math.sqrt(distanceSquared(ax, ay, bx, by));
   double tiniest = math.min(math.min(math.min(ax, bx), ay), by);
   double largest = math.max(math.max(math.max(ax, bx), ay), by);
   largest = math.max(largest, -tiniest);
@@ -225,7 +225,7 @@ bool approximatelyEqual(double ax, double ay, double bx, double by) {
   }
   final double dx = (ax - bx);
   final double dy = (ay - by);
-  double dist = math.sqrt(dx * dx + dy * dy);
+  double dist = math.sqrt(distanceSquared(ax, ay, bx, by));
   double tiniest = math.min(math.min(math.min(ax, bx), ay), by);
   double largest = math.max(math.max(math.max(ax, bx), ay), by);
   largest = math.max(largest, -tiniest);
@@ -445,9 +445,7 @@ bool roughlyEqualPoints(double fX, double fY, double aX, double aY) {
   if (roughlyEqual(fX, aX) && roughlyEqual(fY, aY)) {
     return true;
   }
-  double dx = fX - aX;
-  double dy = fY - aY;
-  double dist = math.sqrt(dx * dx + dy * dy);
+  double dist = math.sqrt(distanceSquared(fX, fY, aX, aY));
   double tiniest = math.min(math.min(math.min(fX, aX), fY), aY);
   double largest = math.max(math.max(math.max(fX, aX), fY), aY);
   largest = math.max(largest, -tiniest);
@@ -461,13 +459,18 @@ bool approximatelyEqualPoints(double aX, double aY, double bX, double bY) {
   if (!roughlyEqualUlps(aX, bX) || !roughlyEqualUlps(aY, bY)) {
     return false;
   }
-  double dx = aX - bX;
-  double dy = aY - bY;
-  double dist = math.sqrt(dx * dx + dy * dy);
+  double dist = math.sqrt(distanceSquared(aX, aY, bX, bY));
   double tiniest = math.min(math.min(math.min(bX, aX), bY), aY);
   double largest = math.max(math.max(math.max(bX, aX), bY), aY);
   largest = math.max(largest, -tiniest);
   return almostDequalUlps(largest, largest + dist);
+}
+
+/// Returns distance between 2 points squared.
+double distanceSquared(double p0x, double p0y, double p1x, double p1y) {
+  final double dx = p0x - p1x;
+  final double dy = p0y - p1y;
+  return dx * dx + dy * dy;
 }
 
 const double kFltEpsilon = 1.19209290E-07; // == 1 / (2 ^ 23)
@@ -494,3 +497,7 @@ const double kBumpEpsilon = kFltEpsilon * 4096;
 const double kScalarMax = 3.402823466e+38;
 const double kFltMax = 3.402823466e+38;
 const double kScalarMin = -kScalarMax;
+/// Max 32bit signed integer.
+const int kMaxS32 = 2147483647;
+/// Min 32bit signed integer.
+const int kMinS32 = -2147483647;

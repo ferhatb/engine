@@ -280,10 +280,8 @@ class _PathContourMeasure {
 
     final Function lineToHandler =
         (double fromX, double fromY, double x, double y) {
-      final double dx = fromX - x;
-      final double dy = fromY - y;
       final double prevDistance = distance;
-      distance += math.sqrt(dx * dx + dy * dy);
+      distance += math.sqrt(distanceSquared(fromX, fromY, x, y));
       // As we accumulate distance, we have to check that the result of +=
       // actually made it larger, since a very small delta might be > 0, but
       // still have no effect on distance (if distance >>> delta).
@@ -427,7 +425,7 @@ class _PathContourMeasure {
     } else {
       final double dx = x0 - x3;
       final double dy = y0 - y3;
-      final double startToEndDistance = math.sqrt(dx * dx + dy * dy);
+      final double startToEndDistance = math.sqrt(distanceSquared(x0, y0, x3, y3));
       final double prevDistance = distance;
       distance += startToEndDistance;
       if (distance > prevDistance) {
@@ -467,9 +465,7 @@ class _PathContourMeasure {
       distance = _computeQuadSegments(
           p012x, p012y, p12x, p12y, x2, y2, distance, tMin, tHalf);
     } else {
-      final double dx = x0 - x2;
-      final double dy = y0 - y2;
-      final double startToEndDistance = math.sqrt(dx * dx + dy * dy);
+      final double startToEndDistance = math.sqrt(distanceSquared(x0, y0, x2, y2));
       final double prevDistance = distance;
       distance += startToEndDistance;
       if (distance > prevDistance) {

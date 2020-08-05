@@ -38,6 +38,45 @@ class Conic {
     return points;
   }
 
+  /// Checks if conic points collapse to a single point.
+  bool collapsed() => approximatelyEqualPoints(p0x, p0y, p2x, p2y) &&
+      approximatelyEqualPoints(p0x, p0y, p1x, p1y);
+
+  /// Checks if control points are inside.
+  bool controlsInside() {
+    double v01x = p0x - p1x;
+    double v01y = p0y - p1y;
+    double v02x = p0x - p2x;
+    double v02y = p0y - p2y;
+    double v12x = p1x - p2x;
+    double v12y = p1y - p2y;
+    double dot1 = v01x * v02x + v01y * v02y;
+    double dot2 = v02x * v12x + v02y * v12y;
+    return dot1 > 0 && dot2 > 0;
+  }
+
+  /// List of points other than at index [oddMan].
+  Float32List otherPts(int oddMan) {
+    Float32List result = Float32List(6);
+    if (oddMan == 0) {
+      result[0] = p1x;
+      result[1] = p1y;
+      result[2] = p2x;
+      result[3] = p2y;
+    } else if (oddMan == 1) {
+      result[0] = p0x;
+      result[1] = p0y;
+      result[2] = p2x;
+      result[3] = p2y;
+    } else {
+      result[0] = p1x;
+      result[1] = p1y;
+      result[2] = p0x;
+      result[3] = p0y;
+    }
+    return result;
+  }
+
   /// Conic point x at curve point [index].
   double xAt(int index) => index == 0 ? p0x : (index == 1 ? p1x : p2x);
   double yAt(int index) => index == 0 ? p0y : (index == 1 ? p1y : p2y);
@@ -334,7 +373,8 @@ class Conic {
     return pow2;
   }
 
-  ui.Offset evalTangentAt(double t) {
+  /// Slope of curve at t.
+  ui.Offset dxdyAtT(double t) {
     // The derivative equation returns a zero tangent vector when t is 0 or 1,
     // and the control point is equal to the end point.
     // In this case, use the conic endpoints to compute the tangent.
@@ -357,6 +397,71 @@ class Conic {
     return ui.Offset(quadC.evalX(t), quadC.evalY(t));
   }
 
+  /// Subdivides curve between [t1] and [t2].
+  /// w rationale : the mid point between t1 and t2 could be determined from the
+  /// computed a/b/c values if the computed w was known. Since we know the mid
+  /// point at (t1+t2)/2, we'll assume that it is the same as the point on the
+  /// new curve t==(0+1)/2.
+  /// d / dz == conic_poly(dst, unknownW, .5) / conic_weight(unknownW, .5);
+  ///    conic_poly(dst, unknownW, .5)
+  ///                  =   a / 4 + (b * unknownW) / 2 + c / 4
+  ///                  =  (a + c) / 4 + (bx * unknownW) / 2
+  ///
+  ///    conic_weight(unknownW, .5)
+  ///                  =   unknownW / 2 + 1 / 2
+  ///
+  ///    d / dz                  == ((a + c) / 2 + b * unknownW) / (unknownW + 1)
+  ///    d / dz * (unknownW + 1) ==  (a + c) / 2 + b * unknownW
+  ///              unknownW       = ((a + c) / 2 - d / dz) / (d / dz - b)
+  ///
+  ///  Thus, w is the ratio of the distance from the mid of end points to the
+  ///  on-curve point, and the distance of the on-curve point to the control
+  ///  point.
+  Conic subDivide(double t1, double t2) {
+    double ax, ay, az;
+    if (t1 == 0) {
+      ax = p0x;
+      ay = p0y;
+      az = 1;
+    } else if (t1 != 1) {
+      ax = conicEvalNumerator(p0x, p1x, p2x, fW, t1);
+      ay = conicEvalNumerator(p0y, p1y, p2y, fW, t1);
+      az = conicEvalDenominator(fW, t1);
+    } else {
+      ax = p2x;
+      ay = p2y;
+      az = 1;
+    }
+    double midT = (t1 + t2) / 2;
+
+    double dx = conicEvalNumerator(p0x, p1x, p2x, fW, midT);
+    double dy = conicEvalNumerator(p0y, p1y, p2y, fW, midT);
+    double dz = conicEvalDenominator(fW, midT);
+    double cx, cy, cz;
+    if (t2 == 1) {
+      cx = p2x;
+      cy = p2y;
+      cz = 1;
+    } else if (t2 != 0) {
+      cx = conicEvalNumerator(p0x, p1x, p2x, fW, t2);
+      cy = conicEvalNumerator(p0y, p1y, p2y, fW, t2);
+      cz = conicEvalDenominator(fW, t2);
+    } else {
+      cx = p0x;
+      cy = p0y;
+      cz = 1;
+    }
+    double bx = 2 * dx - (ax + cx) / 2;
+    double by = 2 * dy - (ay + cy) / 2;
+    double bz = 2 * dz - (az + cz) / 2;
+    if (bz != 0) {
+      // if bz is 0, weight is 0, control point has no effect: any value will do
+      bz = 1;
+    }
+    return Conic(ax / az, ay / az, bx / bz, by / bz, cx / cz, cy / cz,
+        bz / math.sqrt(az * cz));
+  }
+
   /// Denominator for calculating a point on the conic at [t].
   static double conicEvalDenominator(double weight, double t) {
     double B = 2 * (weight - 1);
@@ -375,6 +480,50 @@ class Conic {
     double B = 2 * (src2w - C);
     return (A * t + B) * t + C;
   }
+
+  _HullIntersectResult hullIntersectsQuad(Quad q2) {
+    bool linear = true;
+    for (int oddMan = 0; oddMan < kPointCount; ++oddMan) {
+      Float32List endPts = otherPts(oddMan);
+      double origX = endPts[0];
+      double origY = endPts[1];
+      double adj = endPts[2] - origX;
+      double opp = endPts[3] - origY;
+      double sign = (yAt(oddMan) - origY) * adj - (xAt(oddMan) - origX) * opp;
+      if (approximatelyZero(sign)) {
+        continue;
+      }
+      linear = false;
+      bool foundOutlier = false;
+      for (int n = 0; n < kPointCount; ++n) {
+        double test = (q2.yAt(n) - origY) * adj - (q2.xAt(n) - origX) * opp;
+        if (test * sign > 0 && !preciselyZero(test)) {
+          foundOutlier = true;
+          break;
+        }
+      }
+      if (!foundOutlier) {
+        return _HullIntersectResult(false, linear);
+      }
+    }
+    if (linear && !_matchesEnd(q2.points[0], q2.points[1]) &&
+        !_matchesEnd(q2.points[4], q2.points[5])) {
+      // if the end point of the opposite quad is inside the hull that is nearly a line,
+      // then representing the quad as a line may cause the intersection to be missed.
+      // Check to see if the endpoint is in the triangle.
+      Float32List triangle = toPoints();
+      if (pointInTriangle(triangle, q2.points[0], q2.points[1]) ||
+          pointInTriangle(triangle, q2.points[4], q2.points[5])) {
+        linear = false;
+      }
+    }
+    return _HullIntersectResult(true, linear);
+  }
+
+  /// Checks if point is an end point
+  bool _matchesEnd(double testX, double testY) =>
+      (testX == p0x && testY == p0y) ||
+          (testX == p2x && testY == p2y);
 }
 
 class _QuadBounds {

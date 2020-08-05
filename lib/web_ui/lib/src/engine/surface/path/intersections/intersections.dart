@@ -6,6 +6,15 @@
 part of engine;
 
 /// Compute intersection of 2 contours.
+///
+/// [_IntersectionHelper] on both contours loops through segments and performs
+/// segment to segment intersection that inserts point and t values into
+/// [Intersections].
+///
+/// For intersections other than with lines, quad/conic/cubic curves are
+/// converted to [TCurve] and use [TSect] to compute intersections.
+///
+///
 bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
   if (test != next) {
     if (almostLessUlps(test.bounds.bottom, next.bounds.top)) {
@@ -53,10 +62,10 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
               pts = ts.conicHorizontal(wnSegment.points, wnSegment.weight, wtBounds.left,
                   wtBounds.right, wtBounds.top, wt.xFlipped);
               break;
-//            case _SegmentType.kCubicSegment:
-//              pts = ts.cubicHorizontal(wnSegment.points, wtBounds.left,
-//                  wtBounds.right, wtBounds.top, wt.xFlipped);
-//              break;
+            case _SegmentType.kCubicSegment:
+              pts = ts.cubicHorizontal(wnSegment.points, wtBounds.left,
+                  wtBounds.right, wtBounds.top, wt.xFlipped);
+              break;
             default:
               assert(false);
           }
@@ -64,28 +73,28 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
         case _SegmentType.kVerticalLineSegment:
           swap = true;
           switch (wn.segmentType) {
-//            case _SegmentType.kHorizontalLineSegment:
-//            case _SegmentType.kVerticalLineSegment:
-//            case _SegmentType.kLineSegment: {
-//              pts = ts.lineVertical(wnSegment.points, wtBounds.top,
-//                  wtBounds.bottom, wtBounds.left, wt.yFlipped);
-//              break;
-//            }
-//            case _SegmentType.kQuadSegment: {
-//              pts = ts.quadVertical(wnSegment.points, wtBounds.top,
-//                  wtBounds.bottom, wtBounds.left, wt.yFlipped);
-//              break;
-//            }
-//            case _SegmentType.kConicSegment: {
-//              pts = ts.conicVertical(wnSegment.points, wnSegment.weight,
-//                  wtBounds.top, wtBounds.bottom, wtBounds.left, wt.yFlipped);
-//              break;
-//            }
-//            case _SegmentType.kCubicSegment: {
-//              pts = ts.cubicVertical(wnSegment.points, wtBounds.top,
-//                  wtBounds.bottom, wtBounds.left, wt.yFlipped);
-//              break;
-//            }
+            case _SegmentType.kHorizontalLineSegment:
+            case _SegmentType.kVerticalLineSegment:
+            case _SegmentType.kLineSegment: {
+              pts = ts.lineVertical(wnSegment.points, wtBounds.top,
+                  wtBounds.bottom, wtBounds.left, wt.yFlipped);
+              break;
+            }
+            case _SegmentType.kQuadSegment: {
+              pts = ts.quadVertical(wnSegment.points, wtBounds.top,
+                  wtBounds.bottom, wtBounds.left, wt.yFlipped);
+              break;
+            }
+            case _SegmentType.kConicSegment: {
+              pts = ts.conicVertical(wnSegment.points, wnSegment.weight,
+                  wtBounds.top, wtBounds.bottom, wtBounds.left, wt.yFlipped);
+              break;
+            }
+            case _SegmentType.kCubicSegment: {
+              pts = ts.cubicVertical(wnSegment.points, wtBounds.top,
+                  wtBounds.bottom, wtBounds.left, wt.yFlipped);
+              break;
+            }
             default:
               assert(false);
           }
@@ -96,188 +105,210 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
               pts = ts.lineHorizontal(wtSegment.points, wnBounds.left,
                   wnBounds.right, wnBounds.top, wn.xFlipped);
               break;
-//            case _SegmentType.kVerticalLineSegment:
-//              pts = ts.lineVertical(wtSegment.points, wnBounds.top,
-//                  wnBounds.bottom, wnBounds.left, wn.yFlipped);
-//              break;
-//            case _SegmentType.kLineSegment:
-//              pts = ts.lineLine(wtSegment.points, wnSegment.points);
-//              break;
-//            case _SegmentType.kQuadSegment:
-//              swap = true;
-//              pts = ts.quadLine(wnSegment.points, wtSegment.points);
-//              break;
-//            case _SegmentType.kConicSegment:
-//              swap = true;
-//              pts = ts.conicLine(wnSegment.points, wnSegment.weight,
-//                  wtSegment.points);
-//              break;
-//            case _SegmentType.kCubicSegment:
-//              swap = true;
-//              pts = ts.cubicLine(wnSegment.points, wtSegment.points);
-//              break;
+            case _SegmentType.kVerticalLineSegment:
+              pts = ts.lineVertical(wtSegment.points, wnBounds.top,
+                  wnBounds.bottom, wnBounds.left, wn.yFlipped);
+              break;
+            case _SegmentType.kLineSegment:
+              pts = ts.lineLine(wtSegment.points, wnSegment.points);
+              break;
+            case _SegmentType.kQuadSegment:
+              swap = true;
+              pts = ts.quadLine(wnSegment.points, wtSegment.points);
+              break;
+            case _SegmentType.kConicSegment:
+              swap = true;
+              pts = ts.conicLine(wnSegment.points, wnSegment.weight,
+                  wtSegment.points);
+              break;
+            case _SegmentType.kCubicSegment:
+              swap = true;
+              pts = ts.cubicLine(wnSegment.points, wtSegment.points);
+              break;
             default:
               assert(false);
           }
           break;
         case _SegmentType.kQuadSegment:
           switch (wn.segmentType) {
-//            case _SegmentType.kHorizontalLineSegment:
-//              pts = ts.quadHorizontal(wtSegment.points, wnBounds.left,
-//                  wnBounds.right, wnBounds.top, wn.xFlipped);
-//              break;
-//            case _SegmentType.kVerticalLineSegment:
-//              pts = ts.quadVertical(wtSegment.points, wnBounds.top,
-//                  wnBounds.bottom, wnBounds.left, wn.yFlipped);
-//              break;
-//            case _SegmentType.kLineSegment:
-//              pts = ts.quadLine(wtSegment.points, wnSegment.points);
-//              break;
-//            case _SegmentType.kQuadSegment: {
-//              pts = ts.intersect(quad1.set(wtSegment.points), quad2.set(wnSegment.points));
-//              break;
-//            }
-//            case _SegmentType.kConicSegment: {
-//              swap = true;
-//              pts = ts.intersect(conic2.set(wnSegment.points, wnSegment.weight),
-//                      quad1.set(wtSegment.points));
-//              break;
-//            }
-//            case _SegmentType.kCubicSegment: {
-//              swap = true;
-//              pts = ts.intersect(cubic2.set(wnSegment.points), quad1.set(wtSegment.points));
-//              break;
-//            }
+            case _SegmentType.kHorizontalLineSegment:
+              pts = ts.quadHorizontal(wtSegment.points, wnBounds.left,
+                  wnBounds.right, wnBounds.top, wn.xFlipped);
+              break;
+            case _SegmentType.kVerticalLineSegment:
+              pts = ts.quadVertical(wtSegment.points, wnBounds.top,
+                  wnBounds.bottom, wnBounds.left, wn.yFlipped);
+              break;
+            case _SegmentType.kLineSegment:
+              pts = ts.quadLine(wtSegment.points, wnSegment.points);
+              break;
+            case _SegmentType.kQuadSegment: {
+              quad1 = Quad(wtSegment.points);
+              quad2 = Quad(wnSegment.points);
+              pts = ts.intersectQuad(quad1!, quad2!);
+              break;
+            }
+            case _SegmentType.kConicSegment: {
+              swap = true;
+              conic2 = Conic.fromPoints(wnSegment.points, wnSegment.weight);
+              quad1 = Quad(wtSegment.points);
+              pts = ts.intersectConicQuad(conic2!, quad1!);
+              break;
+            }
+            case _SegmentType.kCubicSegment: {
+              swap = true;
+              cubic2 = Cubic.fromPoints(wnSegment.points);
+              quad1 = Quad(wtSegment.points);
+              pts = ts.intersectCubicQuad(cubic2!, quad1!);
+              break;
+            }
             default:
               assert(false);
           }
           break;
         case _SegmentType.kConicSegment:
           switch (wn.segmentType) {
-//            case _SegmentType.kHorizontalLineSegment:
-//              pts = ts.conicHorizontal(wtSegment.points, wtSegment.weight, wnBounds.left,
-//                      wnBounds.right, wnBounds.top, wn.xFlipped);
-//              break;
-//            case _SegmentType.kVerticalLineSegment:
-//              pts = ts.conicVertical(wtSegment.points, wtSegment.weight, wnBounds.top,
-//                      wnBounds.bottom, wnBounds.left, wn.yFlipped);
-//              break;
-//            case _SegmentType.kLineSegment:
-//              pts = ts.conicLine(wtSegment.points, wtSegment.weight, wnSegment.points);
-//              break;
-//            case _SegmentType.kQuadSegment:
-//              pts = ts.intersect(conic1.set(wtSegment.points, wtSegment.weight),
-//                      quad2.set(wnSegment.points));
-//              break;
-//            case _SegmentType.kConicSegment:
-//              pts = ts.intersect(conic1.set(wtSegment.points, wtSegment.weight),
-//                      conic2.set(wnSegment.points, wnSegment.weight));
-//              break;
-//            case _SegmentType.kCubicSegment:
-//              swap = true;
-//              pts = ts.intersect(cubic2.set(wnSegment.points),
-//                      conic1.set(wtSegment.points, wtSegment.weight));
-//              break;
+            case _SegmentType.kHorizontalLineSegment:
+              pts = ts.conicHorizontal(wtSegment.points, wtSegment.weight, wnBounds.left,
+                      wnBounds.right, wnBounds.top, wn.xFlipped);
+              break;
+            case _SegmentType.kVerticalLineSegment:
+              pts = ts.conicVertical(wtSegment.points, wtSegment.weight, wnBounds.top,
+                      wnBounds.bottom, wnBounds.left, wn.yFlipped);
+              break;
+            case _SegmentType.kLineSegment:
+              pts = ts.conicLine(wtSegment.points, wtSegment.weight, wnSegment.points);
+              break;
+            case _SegmentType.kQuadSegment:
+              conic1 = Conic.fromPoints(wtSegment.points, wtSegment.weight);
+              quad2 = Quad(wnSegment.points);
+              pts = ts.intersectConicQuad(conic1!, quad2!);
+              break;
+            case _SegmentType.kConicSegment:
+              conic1 = Conic.fromPoints(wtSegment.points, wtSegment.weight);
+              conic2 = Conic.fromPoints(wnSegment.points, wnSegment.weight);
+              pts = ts.intersectConic(conic1!, conic2!);
+              break;
+            case _SegmentType.kCubicSegment:
+              swap = true;
+              cubic2 = Cubic.fromPoints(wnSegment.points);
+              conic1 = Conic.fromPoints(wtSegment.points, wtSegment.weight);
+              pts = ts.intersectCubicConic(cubic2!, conic1!);
+              break;
           }
           break;
         case _SegmentType.kCubicSegment:
           switch (wn.segmentType) {
-//            case _SegmentType.kHorizontalLineSegment:
-//              pts = ts.cubicHorizontal(wtSegment.points, wnBounds.left,
-//                      wnBounds.right, wnBounds.top, wn.xFlipped);
-//              break;
-//            case _SegmentType.kVerticalLineSegment:
-//              pts = ts.cubicVertical(wtSegment.points, wnBounds.top,
-//                      wnBounds.bottom, wnBounds.left, wn.yFlipped);
-//              break;
-//            case _SegmentType.kLineSegment:
-//              pts = ts.cubicLine(wtSegment.points, wnSegment.points);
-//              break;
-//            case _SegmentType.kQuadSegment:
-//              pts = ts.intersect(cubic1.set(wtSegment.points), quad2.set(wnSegment.points));
-//              break;
-//            case _SegmentType.kConicSegment:
-//              pts = ts.intersect(cubic1.set(wtSegment.points),
-//                      conic2.set(wnSegment.points, wnSegment.weight));
-//              break;
-//            case _SegmentType.kCubicSegment:
-//              pts = ts.intersect(cubic1.set(wtSegment.points), cubic2.set(wnSegment.points));
-//              break;
+            case _SegmentType.kHorizontalLineSegment:
+              pts = ts.cubicHorizontal(wtSegment.points, wnBounds.left,
+                      wnBounds.right, wnBounds.top, wn.xFlipped);
+              break;
+            case _SegmentType.kVerticalLineSegment:
+              pts = ts.cubicVertical(wtSegment.points, wnBounds.top,
+                      wnBounds.bottom, wnBounds.left, wn.yFlipped);
+              break;
+            case _SegmentType.kLineSegment:
+              pts = ts.cubicLine(wtSegment.points, wnSegment.points);
+              break;
+            case _SegmentType.kQuadSegment:
+              cubic1 = Cubic.fromPoints(wtSegment.points);
+              quad2 = Quad(wnSegment.points);
+              pts = ts.intersectCubicQuad(cubic1!, quad2!);
+              break;
+            case _SegmentType.kConicSegment:
+              cubic1 = Cubic.fromPoints(wtSegment.points);
+              conic2 = Conic.fromPoints(wnSegment.points, wnSegment.weight);
+              pts = ts.intersectCubicConic(cubic1!, conic2!);
+              break;
+            case _SegmentType.kCubicSegment:
+              cubic1 = Cubic.fromPoints(wtSegment.points);
+              cubic2 = Cubic.fromPoints(wnSegment.points);
+              pts = ts.intersectCubic(cubic1!, cubic2!);
+              break;
             default:
               assert(false);
           }
           break;
         default:
-          // TODO: remove unimpl
-          throw UnimplementedError('intersection type notimpl');
           assert(false);
       }
       // TODO
-//      int coinIndex = -1;
-//      SkOpPtT* coinPtT[2];
-//      for (int pt = 0; pt < pts; ++pt) {
-//        SkASSERT(ts[0][pt] >= 0 && ts[0][pt] <= 1);
-//        SkASSERT(ts[1][pt] >= 0 && ts[1][pt] <= 1);
-//        // if t value is used to compute pt in addT, error may creep in and
-//        // rect intersections may result in non-rects. if pt value from intersection
-//        // is passed in, current tests break. As a workaround, pass in pt
-//        // value from intersection only if pt.x and pt.y is integral
-//        SkPoint iPt = ts.pt(pt).asSkPoint();
-//        bool iPtIsIntegral = iPt.fX == floor(iPt.fX) && iPt.fY == floor(iPt.fY);
-//        SkOpPtT* testTAt = iPtIsIntegral ? wt.segment()->addT(ts[swap][pt], iPt)
-//                : wt.segment()->addT(ts[swap][pt]);
-//        wn.segment()->debugValidate();
-//        SkOpPtT* nextTAt = iPtIsIntegral ? wn.segment()->addT(ts[!swap][pt], iPt)
-//                : wn.segment()->addT(ts[!swap][pt]);
-//        if (!testTAt->contains(nextTAt)) {
-//            SkOpPtT* oppPrev = testTAt->oppPrev(nextTAt);  //  Returns nullptr if pair
-//            if (oppPrev) {                                 //  already share a pt-t loop.
-//                testTAt->span()->mergeMatches(nextTAt->span());
-//                testTAt->addOpp(nextTAt, oppPrev);
-//            }
-//            if (testTAt->fPt != nextTAt->fPt) {
-//                testTAt->span()->unaligned();
-//                nextTAt->span()->unaligned();
-//            }
-//            wt.segment()->debugValidate();
-//            wn.segment()->debugValidate();
-//        }
-//        if (!ts.isCoincident(pt)) {
-//            continue;
-//        }
-//        if (coinIndex < 0) {
-//            coinPtT[0] = testTAt;
-//            coinPtT[1] = nextTAt;
-//            coinIndex = pt;
-//            continue;
-//        }
-//        if (coinPtT[0]->span() == testTAt->span()) {
-//            coinIndex = -1;
-//            continue;
-//        }
-//        if (coinPtT[1]->span() == nextTAt->span()) {
-//            coinIndex = -1;  // coincidence span collapsed
-//            continue;
-//        }
-//        if (swap) {
-//            using std::swap;
-//            swap(coinPtT[0], coinPtT[1]);
-//            swap(testTAt, nextTAt);
-//        }
-//        SkASSERT(coincidence->globalState()->debugSkipAssert()
-//                || coinPtT[0]->span()->t() < testTAt->span()->t());
-//        if (coinPtT[0]->span()->deleted()) {
-//            coinIndex = -1;
-//            continue;
-//        }
-//        if (testTAt->span()->deleted()) {
-//            coinIndex = -1;
-//            continue;
-//        }
-//        coincidence->add(coinPtT[0], testTAt, coinPtT[1], nextTAt);
-//        coinIndex = -1;
-//      }
-//      SkOPOBJASSERT(coincidence, coinIndex < 0);  // expect coincidence to be paired
+      int coinIndex = -1;
+      List<OpPtT?> coinPtT = <OpPtT?>[null, null];
+      for (int pt = 0; pt < pts; ++pt) {
+        assert(ts.fT0[pt] >= 0 && ts.fT0[pt] <= 1);
+        assert(ts.fT1[pt] >= 0 && ts.fT1[pt] <= 1);
+        // if t value is used to compute pt in addT, error may creep in and
+        // rect intersections may result in non-rects. if pt value from
+        // intersection is passed in, current tests break. As a workaround,
+        // pass in pt value from intersection only if pt.x and pt.y is integral.
+        double iPtX = ts.ptX[pt];
+        double iPtY = ts.ptY[pt];
+        bool iPtIsIntegral = iPtX == iPtX.floor() && iPtY == iPtY.floor();
+        OpPtT testTAt = iPtIsIntegral ? wt.segment!.addTAtPoint(
+            swap == 0 ? ts.fT0[pt] : ts.fT1[pt], iPtX, iPtY)
+              : wt.segment!.addT(swap == 0 ? ts.fT0[pt] : ts.fT1[pt]);
+        wn.segment!.debugValidate();
+        OpPtT nextTAt = iPtIsIntegral ? wn.segment!.addTAtPoint(
+            swap == 1 ? ts.fT0[pt] : ts.fT1[pt], iPtX, iPtY)
+              : wn.segment!.addT(swap == 1 ? ts.fT0[pt] : ts.fT1[pt]);
+        /// Skip adding/merging nextTAt in case an existing testTAt was found
+        /// and it is already in testTAt loop.
+        if (!testTAt.contains(nextTAt)) {
+          // oppPrev is null if pair.
+          OpPtT? oppPrev = testTAt.oppPrev(nextTAt);
+          if (oppPrev != null) {
+            // testTAt and nextTAt already share a pt-t loop.
+            testTAt.span.mergeMatches(nextTAt.span);
+            // Insert new pt-t into link list.
+            testTAt.addOpp(nextTAt, oppPrev);
+          }
+          if (testTAt.fPt != nextTAt.fPt) {
+            /// Mark spans unaligned if they are at different points.
+            testTAt.span.unaligned();
+            nextTAt.span.unaligned();
+          }
+          wt.segment!.debugValidate();
+          wn.segment!.debugValidate();
+        }
+        if (!ts.isCoincident(pt)) {
+          continue;
+        }
+        if (coinIndex < 0) {
+          coinPtT[0] = testTAt;
+          coinPtT[1] = nextTAt;
+          coinIndex = pt;
+          continue;
+        }
+        if (coinPtT[0]!.span == testTAt.span) {
+          coinIndex = -1;
+          continue;
+        }
+        if (coinPtT[1]!.span == nextTAt.span) {
+          coinIndex = -1;  // coincidence span collapsed
+          continue;
+        }
+        if (swap) {
+            OpPtT? temp = coinPtT[0];
+            coinPtT[0] = coinPtT[1];
+            coinPtT[1] = temp;
+            temp = nextTAt;
+            nextTAt = testTAt;
+            testTAt = temp;
+        }
+        assert(coinPtT[0]!.span.t < testTAt.span.t);
+        if (coinPtT[0]!.span.deleted) {
+          coinIndex = -1;
+          continue;
+        }
+        if (testTAt.span.deleted) {
+          coinIndex = -1;
+          continue;
+        }
+        coincidence.add(coinPtT[0]!, testTAt, coinPtT[1]!, nextTAt);
+        coinIndex = -1;
+      }
+      assert(coinIndex < 0);  // expect coincidence to be paired
     } while (wn.advance());
   } while (wt.advance());
   return true;
@@ -546,6 +577,13 @@ class Intersections {
     return pinT((x - line.x0) / (line.x1 - line.x0));
   }
 
+  int lineVertical(Float32List points, double top, double bottom, double x,
+      bool flipped) {
+    DLine line = DLine.fromPoints(points);
+    fMax = 2;
+    return vertical(line, top, bottom, x, flipped);
+  }
+
   int vertical(DLine line, double top, double bottom, double x, bool flipped) {
     // Parallel cleanup will reduce to at most 2.
     fMax = 3;
@@ -715,6 +753,11 @@ class Intersections {
     return fUsed;
   }
 
+  int lineLine(Float32List a, Float32List b) {
+    fMax = 2;
+    return intersectLines(DLine.fromPoints(a), DLine.fromPoints(b));
+  }
+
   /// Remove points due to parallel lines overlapping each other.
   void cleanUpParallelLines(bool parallel) {
     // Remove all points between first and last.
@@ -780,9 +823,29 @@ class Intersections {
 
   int quadHorizontal(Float32List points, double left, double right, double y,
       bool flipped) {
+    fMax = 2;
     DLine line = DLine(left, y, right, y);
-    final LineQuadraticIntersections q = LineQuadraticIntersections(points, line, this);
+    Quad quad = Quad(points);
+    final LineQuadraticIntersections q = LineQuadraticIntersections(quad,
+        line, this);
     return q.horizontalIntersect(y, left, right, flipped);
+  }
+
+  int quadVertical(Float32List points, double top, double bottom, double x,
+      bool flipped) {
+    fMax = 2;
+    DLine line = DLine(x, top, x, bottom);
+    Quad quad = Quad(points);
+    LineQuadraticIntersections q = LineQuadraticIntersections(quad, line, this);
+    return q.verticalIntersect(x, top, bottom, flipped);
+  }
+
+  int quadLine(Float32List points, Float32List linePoints) {
+    fMax = 2;
+    LineQuadraticIntersections q = LineQuadraticIntersections(Quad(points),
+        DLine.fromPoints(linePoints), this);
+    q.allowNear(fAllowNear);
+    return q.intersect();
   }
 
   int conicHorizontal(Float32List points, double weight, double left,
@@ -801,6 +864,38 @@ class Intersections {
     DLine line = DLine(x, top, x, bottom);
     final LineConicIntersections c = LineConicIntersections(conic, line, this);
     return c.verticalIntersect(x, top, bottom, flipped);
+  }
+
+  int conicLine(Float32List points, double weight, Float32List linePoints) {
+    fMax = 3; // 2;  permit small coincident segment + non-coincident intersection
+    return intersectConicWithLine(Conic.fromPoints(points, weight),
+        DLine.fromPoints(linePoints));
+  }
+
+  int cubicHorizontal(Float32List points, double left, double right, double y,
+      bool flipped) {
+    fMax = 3;
+    Cubic cubic = Cubic.fromPoints(points);
+    DLine line = DLine(left, y, right, y);
+    LineCubicIntersections c = LineCubicIntersections(cubic, line, this);
+    return c.horizontalIntersect(y, left, right, flipped);
+  }
+
+  int cubicVertical(Float32List points, double top, double bottom, double x,
+      bool flipped) {
+    fMax = 3;
+    Cubic cubic = Cubic.fromPoints(points);
+    DLine line = DLine(x, top, x, bottom);
+    LineCubicIntersections c = LineCubicIntersections(cubic, line, this);
+    return c.verticalIntersect(x, top, bottom, flipped);
+  }
+
+  int cubicLine(Float32List points, Float32List linePoints) {
+    Cubic cubic = Cubic.fromPoints(points);
+    DLine line = DLine.fromPoints(linePoints);
+    LineCubicIntersections c = LineCubicIntersections(cubic, line, this);
+    c.allowNear(fAllowNear);
+    return c.intersect();
   }
 
   int intersectConicWithLine(Conic conic, DLine line) {
@@ -850,7 +945,7 @@ class Intersections {
   }
 
   int intersectRayQuad(Quad quad, DLine line) {
-    LineQuadraticIntersections q = LineQuadraticIntersections(quad.points, line,
+    LineQuadraticIntersections q = LineQuadraticIntersections(quad, line,
         this);
     List<double> roots = [];
     fUsed = q.intersectRay(roots);
@@ -867,18 +962,25 @@ class Intersections {
   }
 
   int intersectRayConic(Conic conic, DLine line) {
-//    LineConicIntersections c = LineConicIntersections(conic, line, this);
-//    List<double> roots = [];
-//    fUsed = c.intersectRay(roots);
-//    for (int index = 0; index < fUsed; ++index) {
-//      double t = fT0[index] = roots[index];
-//      ui.Offset pointAtT = conic.ptAtT(t);
-//      ptX[index] = pointAtT.dx;
-//      ptY[index] = pointAtT.dy;
-//    }
-//    return fUsed;
-    // TODO:
-    throw UnimplementedError('');
+    LineConicIntersections c = LineConicIntersections(conic, line, this);
+    fUsed = c.intersectRay(fT0);
+    for (int index = 0; index < fUsed; ++index) {
+      final ui.Offset pointAtT = conic.ptAtT(fT0[index]);
+      ptX[index] = pointAtT.dx;
+      ptY[index] = pointAtT.dy;
+    }
+    return fUsed;
+  }
+
+  int intersectRayCubic(Cubic cubic, DLine line) {
+    LineCubicIntersections c = LineCubicIntersections(cubic, line, this);
+    fUsed = c.intersectRay(fT0);
+    for (int index = 0; index < fUsed; ++index) {
+      final ui.Offset pointAtT = cubic.ptAtT(fT0[index]);
+      ptX[index] = pointAtT.dx;
+      ptY[index] = pointAtT.dy;
+    }
+    return fUsed;
   }
 
   void computePoints(DLine line, int used) {
@@ -908,6 +1010,60 @@ class Intersections {
     int bit = 1 << index;
     fIsCoincident0 |= bit;
     fIsCoincident1 |= bit;
+  }
+
+  int intersectQuad(Quad q1, Quad q2) {
+    TQuad quad1 = TQuad(q1);
+    TQuad quad2 = TQuad(q2);
+    TSect sect1 = TSect(quad1);
+    TSect sect2 = TSect(quad2);
+    TSect.binarySearch(sect1, sect2, this);
+    return fUsed;
+  }
+
+  int intersectConicQuad(Conic c, Quad q) {
+    TConic conic = TConic(c);
+    TQuad quad = TQuad(q);
+    TSect sect1 = TSect(conic);
+    TSect sect2 = TSect(quad);
+    TSect.binarySearch(sect1, sect2, this);
+    return fUsed;
+  }
+
+  int intersectConic(Conic c1, Conic c2) {
+    TConic conic1 = TConic(c1);
+    TConic conic2 = TConic(c2);
+    TSect sect1 = TSect(conic1);
+    TSect sect2 = TSect(conic2);
+    TSect.binarySearch(sect1, sect2, this);
+    return fUsed;
+  }
+
+  int intersectCubicQuad(Cubic c, Quad q) {
+    TCubic cubic = TCubic(c);
+    TQuad quad = TQuad(q);
+    TSect sect1 = TSect(cubic);
+    TSect sect2 = TSect(quad);
+    TSect.binarySearch(sect1, sect2, this);
+    return fUsed;
+  }
+
+  int intersectCubicConic(Cubic cu, Conic co) {
+    TCubic cubic = TCubic(cu);
+    TConic conic = TConic(co);
+    TSect sect1 = TSect(cubic);
+    TSect sect2 = TSect(conic);
+    TSect.binarySearch(sect1, sect2, this);
+    return fUsed;
+  }
+
+  int intersectCubic(Cubic c1, Cubic c2) {
+    TCubic cubic1 = TCubic(c1);
+    TCubic cubic2 = TCubic(c2);
+    TSect sect1 = TSect(cubic1);
+    TSect sect2 = TSect(cubic2);
+    TSect.binarySearch(sect1, sect2, this);
+    return fUsed;
   }
 }
 
@@ -942,7 +1098,7 @@ double _horizontalIntercept(DLine line, double y) {
   return pinT((y - line.y0) / (line.y1 - line.y0));
 }
 
-class Curve {
+class CurveDistance {
   /// Computes nearest point distance of point to curve.
   ///
   /// Assumes that the perpendicular to the point is the closest ray to the
@@ -973,16 +1129,15 @@ class Curve {
     }
     Intersections i = Intersections();
     DLine perpendicular = DLine(x, y, x + oppY - y, y + x - oppX);
-    intersectRay(points, verb, perpendicular, i);
+    intersectRay(points, verb, weight, perpendicular, i);
     int minIndex = -1;
     double minDist = kFltMax;
     for (int index = 0; index < i.fUsed; ++index) {
-      final double dx = x - i.ptX[index];
-      final double dy = y - i.ptY[index];
-      final double dist = math.sqrt(dx * dx + dy * dy);
+      final double dist = math.sqrt(distanceSquared(x, y,
+          i.ptX[index], i.ptY[index]));
       if (minDist > dist) {
-          minDist = dist;
-          minIndex = index;
+        minDist = dist;
+        minIndex = index;
       }
     }
     if (minIndex < 0) {
@@ -997,7 +1152,7 @@ class Curve {
   }
 }
 
-void intersectRay(Float32List points, int verb, DLine line,
+void intersectRay(Float32List points, int verb, double weight, DLine line,
     Intersections intersections) {
   switch (verb) {
     case SPathVerb.kLine:
@@ -1007,10 +1162,10 @@ void intersectRay(Float32List points, int verb, DLine line,
       intersections.intersectRayQuad(Quad(points), line);
       break;
     case SPathVerb.kConic:
-      // TODO: intersections.intersectRayConic(Conic.fromPoints(points), line);
+      intersections.intersectRayConic(Conic.fromPoints(points, weight), line);
       break;
     case SPathVerb.kCubic:
-      // TODO: intersections.intersectRayCubic(points, line);
+      intersections.intersectRayCubic(Cubic.fromPoints(points), line);
       break;
     default:
       assert(false);

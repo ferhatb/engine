@@ -8,21 +8,71 @@ part of engine;
 /// Quadratic curve utilities.
 class Quad {
   final Float32List points;
+
   Quad(this.points);
 
-  static const int kMaxPoints = 3;
+  static const int kPointCount = 3;
+  static const int kPointLast = kPointCount - 1;
 
   bool get linear => Quad.isLinear(points, 0, 2);
+
+  double xAt(int index) => points[index * 2];
+
+  double yAt(int index) => points[index * 2 + 1];
+
+  /// Checks if quadratic points collapse to a single point.
+  bool collapsed() =>
+      approximatelyEqualPoints(points[0], points[1], points[4], points[5]) &&
+          approximatelyEqualPoints(points[0], points[1], points[2], points[3]);
+
+  bool controlsInside() => controlsInsideQuad(points);
+
+  /// Checks if control points are inside.
+  static bool controlsInsideQuad(Float32List points) {
+    double v01x = points[0] - points[2];
+    double v01y = points[1] - points[3];
+    double v02x = points[0] - points[4];
+    double v02y = points[1] - points[5];
+    double v12x = points[2] - points[4];
+    double v12y = points[3] - points[5];
+    double dot1 = v01x * v02x + v01y * v02y;
+    double dot2 = v02x * v12x + v02y * v12y;
+    return dot1 > 0 && dot2 > 0;
+  }
+
+  /// List of points other than at index [oddMan].
+  Float32List otherPts(int oddMan) {
+    Float32List result = Float32List(4);
+    if (oddMan == 0) {
+      result[0] = points[2];
+      result[1] = points[3];
+      result[2] = points[4];
+      result[3] = points[5];
+    } else if (oddMan == 1) {
+      result[0] = points[0];
+      result[1] = points[1];
+      result[2] = points[4];
+      result[3] = points[5];
+    } else {
+      result[0] = points[2];
+      result[1] = points[3];
+      result[2] = points[0];
+      result[3] = points[1];
+    }
+    return result;
+  }
 
   static bool isLinear(Float32List points, int startIndex, int endIndex) {
     final LineParameters lineParameters = LineParameters();
     lineParameters.quadEndPointsAt(points, startIndex, endIndex);
     lineParameters.normalize();
     double distance = lineParameters.controlPtDistanceQuad(points);
-    double tiniest = math.min(math.min(math.min(math.min(math.min(points[0], points[1]),
-        points[2]), points[3]), points[4]), points[5]);
-    double largest = math.max(math.max(math.max(math.max(math.max(points[0], points[1]),
-        points[2]), points[3]), points[4]), points[5]);
+    double tiniest = math.min(
+        math.min(math.min(math.min(math.min(points[0], points[1]),
+            points[2]), points[3]), points[4]), points[5]);
+    double largest = math.max(
+        math.max(math.max(math.max(math.max(points[0], points[1]),
+            points[2]), points[3]), points[4]), points[5]);
     largest = math.max(largest, -tiniest);
     return approximatelyZeroWhenComparedTo(distance, largest);
   }
@@ -84,7 +134,8 @@ class Quad {
 
   /// Filters a source list of T values to the range 0 < t < 1 and
   /// de-duplicates t values that are approximately equal.
-  static int addValidTs(List<double> source, int sourceCount, List<double> target) {
+  static int addValidTs(List<double> source, int sourceCount,
+      List<double> target) {
     int foundRoots = 0;
     for (int index = 0; index < sourceCount; ++index) {
       double tValue = source[index];
@@ -125,6 +176,104 @@ class Quad {
     return ui.Offset(a * points[0] + b * points[2] + c * points[4],
         a * points[1] + b * points[3] + c * points[5]);
   }
+
+  /// Slope of curve at t.
+  ui.Offset dxdyAtT(double t) {
+    double a = t - 1;
+    double b = 1 - 2 * t;
+    double c = t;
+    if (zeroOrOne(t)) {
+      return ui.Offset(points[2] - points[0], points[3] - points[1]);
+    }
+    return ui.Offset(a * points[0] + b * points[2] + c * points[4],
+        a * points[1] + b * points[3] + c * points[5]);
+  }
+
+  Quad subDivide(double t1, double t2) {
+    Float32List result = Float32List(6);
+    _chopQuadBetweenT(points, t1, t2, result);
+    return Quad(result);
+  }
+
+  _HullIntersectResult hullIntersectsQuad(Quad q2) {
+    bool linear = true;
+    for (int oddMan = 0; oddMan < kPointCount; ++oddMan) {
+      Float32List endPts = otherPts(oddMan);
+      double origX = endPts[0];
+      double origY = endPts[1];
+      double adj = endPts[2] - origX;
+      double opp = endPts[3] - origY;
+      double sign = (yAt(oddMan) - origY) * adj - (xAt(oddMan) - origX) * opp;
+      if (approximatelyZero(sign)) {
+        continue;
+      }
+      linear = false;
+      bool foundOutlier = false;
+      for (int n = 0; n < kPointCount; ++n) {
+        double test = (q2.yAt(n) - origY) * adj - (q2.xAt(n) - origX) * opp;
+        if (test * sign > 0 && !preciselyZero(test)) {
+          foundOutlier = true;
+          break;
+        }
+      }
+      if (!foundOutlier) {
+        return _HullIntersectResult(false, linear);
+      }
+    }
+    if (linear && !_matchesEnd(q2.points[0], q2.points[1]) &&
+        !_matchesEnd(q2.points[4], q2.points[5])) {
+      // if the end point of the opposite quad is inside the hull that is nearly a line,
+      // then representing the quad as a line may cause the intersection to be missed.
+      // Check to see if the endpoint is in the triangle.
+      if (pointInTriangle(points, q2.points[0], q2.points[1]) ||
+          pointInTriangle(points, q2.points[4], q2.points[5])) {
+        linear = false;
+      }
+    }
+    return _HullIntersectResult(true, linear);
+  }
+
+  _HullIntersectResult hullIntersectsConic(Conic conic) =>
+      conic.hullIntersectsQuad(this);
+
+  _HullIntersectResult hullIntersectsCubic(Cubic cubic) =>
+      cubic.hullIntersects(points, kPointCount);
+
+  /// Checks if point is an end point
+  bool _matchesEnd(double testX, double testY) =>
+      (testX == points[0] && testY == points[1]) ||
+          (testX == points[4] && testY == points[5]);
+}
+
+/// Checks if a point is inside a triangle defined by [points].
+///
+/// A simple way is to look at angle from point to all 3 corners. If
+/// sum is 360, this point is inside the triangle, however this is slow.
+///
+/// This method uses Barycentric coordinates to check if point is inside. See
+/// "Determining location with respect to a triangle"
+/// https://en.wikipedia.org/wiki/Barycentric_coordinate_system
+bool pointInTriangle(Float32List points, double testX, double testY) {
+  double v0x = points[4] - points[0];
+  double v0y = points[5] - points[1];
+  double v1x = points[2] - points[0];
+  double v1y = points[3] - points[1];
+  double v2x = testX - points[0];
+  double v2y = testY - points[1];
+  double dot00 = v0x * v0x + v0y * v0y;
+  double dot01 = v0x * v1x + v0y * v1y;
+  double dot02 = v0x * v2x + v0y * v2y;
+  double dot11 = v1x * v1x + v1y * v1y;
+  double dot12 = v1x * v2x + v1y * v2y;
+  // Compute barycentric coordinates.
+  double denom = dot00 * dot11 - dot01 * dot01;
+  double u = dot11 * dot02 - dot01 * dot12;
+  double v = dot00 * dot12 - dot01 * dot02;
+  // Check if point is in triangle.
+  if (denom >= 0) {
+    return u >= 0 && v >= 0 && u + v < denom;
+  }
+  return u <= 0 && v <= 0 && u + v > denom;
 }
 
 /// Chops a non-monotonic quadratic curve, returns subdivisions and writes
