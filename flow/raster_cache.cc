@@ -1,7 +1,6 @@
 // Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-// FLUTTER_NOLINT
 
 #include "flutter/flow/raster_cache.h"
 
@@ -160,16 +159,16 @@ std::unique_ptr<RasterCacheResult> RasterCache::RasterizeLayer(
                                            canvas_size.height());
         internal_nodes_canvas.addCanvas(canvas);
         Layer::PaintContext paintContext = {
-            (SkCanvas*)&internal_nodes_canvas,  // internal_nodes_canvas
-            canvas,                             // leaf_nodes_canvas
-            context->gr_context,                // gr_context
-            nullptr,                            // view_embedder
+            /* internal_nodes_canvas= */ static_cast<SkCanvas*>(
+                &internal_nodes_canvas),
+            /* leaf_nodes_canvas= */ canvas,
+            /* gr_context= */ context->gr_context,
+            /* view_embedder= */ nullptr,
             context->raster_time,
             context->ui_time,
             context->texture_registry,
             context->has_platform_view ? nullptr : context->raster_cache,
             context->checkerboard_offscreen_layers,
-            context->frame_physical_depth,
             context->frame_device_pixel_ratio};
         if (layer->needs_painting()) {
           layer->Paint(paintContext);
@@ -233,7 +232,7 @@ bool RasterCache::Draw(const SkPicture& picture, SkCanvas& canvas) const {
   entry.used_this_frame = true;
 
   if (entry.image) {
-    entry.image->draw(canvas);
+    entry.image->draw(canvas, nullptr);
     return true;
   }
 
