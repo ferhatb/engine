@@ -111,6 +111,7 @@ part 'engine/surface/path/intersections/line_intersections.dart';
 part 'engine/surface/path/intersections/op_coincidence.dart';
 part 'engine/surface/path/intersections/tcurve.dart';
 part 'engine/surface/path/intersections/tsect.dart';
+part 'engine/surface/path/intersections/tspan.dart';
 part 'engine/surface/path/line_parameters.dart';
 part 'engine/surface/path/op_builder.dart';
 part 'engine/surface/path/path.dart';

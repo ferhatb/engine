@@ -439,7 +439,7 @@ class LineConicIntersections {
 
   LineConicIntersections(this.conic, this.line, this.i) {
     // Allow short partial coincidence plus discrete intersection.
-    i.fMax = 4;
+    i.setMax(4);
   }
 
   void allowNear(bool allow) {

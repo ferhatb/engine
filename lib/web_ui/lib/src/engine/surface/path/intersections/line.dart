@@ -14,6 +14,9 @@ class DLine {
   factory DLine.fromPoints(Float32List points) =>
       DLine(points[0], points[1], points[2], points[3]);
 
+  static const int kPointCount = 2;
+  static const int kPointLast = kPointCount - 1;
+
   /// Checks if point is exactly at start or end of the line.
   double exactPoint(double x, double y) {
     // Do cheapest test first.
@@ -145,4 +148,6 @@ class DLine {
   double ptAtTx(double t) => t == 0 ? x0 : (t == 1 ? x1 : (x0 * (1 - t) + x1 * t));
   double ptAtTy(double t) => t == 0 ? y0 : (t == 1 ? y1 : (y0 * (1 - t) + y1 * t));
   ui.Offset ptAtT(double t) => ui.Offset(ptAtTx(t), ptAtTy(t));
+  double xAt(int index) => index == 0 ? x0 : x1;
+  double yAt(int index) => index == 0 ? y0 : y1;
 }

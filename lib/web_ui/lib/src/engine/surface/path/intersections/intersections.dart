@@ -232,7 +232,6 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
         default:
           assert(false);
       }
-      // TODO
       int coinIndex = -1;
       List<OpPtT?> coinPtT = <OpPtT?>[null, null];
       for (int pt = 0; pt < pts; ++pt) {
@@ -379,7 +378,7 @@ class Intersections {
   final Float64List pt2y = Float64List(2);
   int fUsed = 0;
   int fSwap = 0;
-  int fMax = 0;
+  int _fMax = 0;
   bool fAllowNear = true;
 
   Intersections() {
@@ -390,6 +389,11 @@ class Intersections {
     fAllowNear = true;
     fUsed = 0;
     fIsCoincident0 = fIsCoincident1 = 0;
+  }
+
+  void setMax(int max) {
+    assert(max <= kMaxPoints);
+    _fMax = max;
   }
 
   /// Insert t values of both curves at point [px],[py] into sorted list of
@@ -443,7 +447,7 @@ class Intersections {
         break;
       }
     }
-    if (fUsed >= fMax) {
+    if (fUsed >= _fMax) {
       assert(false);
       fUsed = 0;
       return 0;
@@ -480,6 +484,9 @@ class Intersections {
     return index;
   }
 
+  int insertAtOffset(double one, double two, ui.Offset offset) =>
+    insert(one, two, offset.dx, offset.dy);
+
   // Insert with an alternate intersection point when they are very close.
   void insertNear(double one, double two, double x0, double y0, double x1, double y1) {
     assert(one == 0 || one == 1);
@@ -491,10 +498,23 @@ class Intersections {
     pt2y[one != 0 ? 1 : 0] = y1;
   }
 
+  /// Create intersection by merging intersections [a] with
+  /// intersections [b] as alternate point.
+  void merge(Intersections a, int aIndex, Intersections b, int bIndex) {
+    reset();
+    fT0[0] = a.fT0[aIndex];
+    fT1[0] = b.fT0[bIndex];
+    ptX[0] = a.ptX[aIndex];
+    ptY[0] = a.ptY[aIndex];
+    pt2x[0] = b.ptX[bIndex];
+    pt2y[0] = b.ptY[bIndex];
+    fUsed = 1;
+  }
+
   int lineHorizontal(Float32List points, double left, double right, double y,
       bool flipped) {
     final DLine line = DLine.fromPoints(points);
-    fMax = 2;
+    _fMax = 2;
     return horizontal(line, left, right, y, flipped);
   }
 
@@ -502,7 +522,7 @@ class Intersections {
   int horizontal(DLine line, double left, double right, double y,
       bool flipped) {
     // Clean up parallel at the end will limit the result to 2 at the most.
-    fMax = 3;
+    _fMax = 3;
     // See if end points intersect the opposite line.
     double t;
     if ((t = line.exactPoint(left, y)) >= 0) {
@@ -580,13 +600,13 @@ class Intersections {
   int lineVertical(Float32List points, double top, double bottom, double x,
       bool flipped) {
     DLine line = DLine.fromPoints(points);
-    fMax = 2;
+    _fMax = 2;
     return vertical(line, top, bottom, x, flipped);
   }
 
   int vertical(DLine line, double top, double bottom, double x, bool flipped) {
     // Parallel cleanup will reduce to at most 2.
-    fMax = 3;
+    _fMax = 3;
     // See if end points intersect the opposite line
     double t;
     if ((t = line.exactPoint(x, top)) >= 0) {
@@ -644,7 +664,7 @@ class Intersections {
   // Intersection for lines that are both non horizontal/vertical.
   int intersectLines(DLine a, DLine b) {
     // Parallel cleanup will ensure this is no more than 2 at the end.
-    fMax = 3;
+    _fMax = 3;
     // See if end points intersect the opposite line.
     double t;
     if ((t = b.exactPoint(a.x0, a.y0)) >= 0) {
@@ -754,7 +774,7 @@ class Intersections {
   }
 
   int lineLine(Float32List a, Float32List b) {
-    fMax = 2;
+    _fMax = 2;
     return intersectLines(DLine.fromPoints(a), DLine.fromPoints(b));
   }
 
@@ -823,7 +843,7 @@ class Intersections {
 
   int quadHorizontal(Float32List points, double left, double right, double y,
       bool flipped) {
-    fMax = 2;
+    _fMax = 2;
     DLine line = DLine(left, y, right, y);
     Quad quad = Quad(points);
     final LineQuadraticIntersections q = LineQuadraticIntersections(quad,
@@ -833,7 +853,7 @@ class Intersections {
 
   int quadVertical(Float32List points, double top, double bottom, double x,
       bool flipped) {
-    fMax = 2;
+    _fMax = 2;
     DLine line = DLine(x, top, x, bottom);
     Quad quad = Quad(points);
     LineQuadraticIntersections q = LineQuadraticIntersections(quad, line, this);
@@ -841,7 +861,7 @@ class Intersections {
   }
 
   int quadLine(Float32List points, Float32List linePoints) {
-    fMax = 2;
+    _fMax = 2;
     LineQuadraticIntersections q = LineQuadraticIntersections(Quad(points),
         DLine.fromPoints(linePoints), this);
     q.allowNear(fAllowNear);
@@ -851,7 +871,7 @@ class Intersections {
   int conicHorizontal(Float32List points, double weight, double left,
       double right, double y, bool flipped) {
     Conic conic = Conic.fromPoints(points, weight);
-    fMax = 2;
+    _fMax = 2;
     DLine line = DLine(left, y, right, y);
     final LineConicIntersections c = LineConicIntersections(conic, line, this);
     return c.horizontalIntersect(y, left, right, flipped);
@@ -860,21 +880,21 @@ class Intersections {
   int conicVertical(Float32List points, double weight, double top,
       double bottom, double x, bool flipped) {
     Conic conic = Conic.fromPoints(points, weight);
-    fMax = 2;
+    _fMax = 2;
     DLine line = DLine(x, top, x, bottom);
     final LineConicIntersections c = LineConicIntersections(conic, line, this);
     return c.verticalIntersect(x, top, bottom, flipped);
   }
 
   int conicLine(Float32List points, double weight, Float32List linePoints) {
-    fMax = 3; // 2;  permit small coincident segment + non-coincident intersection
+    _fMax = 3; // 2;  permit small coincident segment + non-coincident intersection
     return intersectConicWithLine(Conic.fromPoints(points, weight),
         DLine.fromPoints(linePoints));
   }
 
   int cubicHorizontal(Float32List points, double left, double right, double y,
       bool flipped) {
-    fMax = 3;
+    _fMax = 3;
     Cubic cubic = Cubic.fromPoints(points);
     DLine line = DLine(left, y, right, y);
     LineCubicIntersections c = LineCubicIntersections(cubic, line, this);
@@ -883,7 +903,7 @@ class Intersections {
 
   int cubicVertical(Float32List points, double top, double bottom, double x,
       bool flipped) {
-    fMax = 3;
+    _fMax = 3;
     Cubic cubic = Cubic.fromPoints(points);
     DLine line = DLine(x, top, x, bottom);
     LineCubicIntersections c = LineCubicIntersections(cubic, line, this);
@@ -905,7 +925,7 @@ class Intersections {
   }
 
   int intersectRayLine(DLine a, DLine b) {
-    fMax = 2;
+    _fMax = 2;
     final double aLenX = a.x1 - a.x0;
     final double aLenY = a.y1 - a.y0;
     final double bLenX = b.x1 - b.x0;

@@ -342,6 +342,11 @@ bool approximatelyZeroWhenComparedTo(double x, double y) {
   return x == 0 || x.abs() < (y * kFltEpsilon).abs();
 }
 
+/// Checks if [x] is absolutely smaller than y scaled by double epsilon.
+bool preciselyZeroWhenComparedTo(double x, double y) {
+  return x == 0 || x.abs() < (y * kDblEpsilon).abs();
+}
+
 /// Checks if x is negative within 4 [kDblEpsilon].
 bool preciselyNegative(double x) {
   return x < kDblEpsilonErr;

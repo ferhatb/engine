@@ -22,8 +22,6 @@ abstract class TCurve {
   _HullIntersectResult hullIntersects(TCurve curve); // Returns success, isLinearResult.
   int intersectRay(Intersections i, DLine line);
   bool get isConic;
-  /// Allows TSpan to allocate part for curve.
-  // TODO : TCurve make();
   /// Maximum number of intersections with a ray.
   int get maxIntersections;
   /// To calculate hull, based on [oddMan] returns other curve points.
@@ -33,6 +31,39 @@ abstract class TCurve {
   ui.Offset ptAtT(double t);
   ui.Rect getTightBounds();
   TCurve subDivide(double t1, double t2);
+
+  /// Checks if line is parallel to curve by intersecting lines perpendicular at
+  /// line end points with curve and checking if they are approximately equal
+  /// i.e. very close to curvature on both start and end.
+  ///
+  /// ! For now only works for Conics.
+  static bool isParallel(DLine thisLine, TCurve opp) {
+    if (!(opp is TConic)) {
+      return false;
+    }
+    int finds = 0;
+    DLine perpLine = DLine(thisLine.x1 + (thisLine.y1 - thisLine.y0),
+        thisLine.y1 + (thisLine.x0 - thisLine.x1), thisLine.x1, thisLine.y1);
+    Intersections perpRayI = Intersections();
+    opp.intersectRay(perpRayI, perpLine);
+    for (int pIndex = 0; pIndex < perpRayI.fUsed; ++pIndex) {
+      if (approximatelyEqualPoints(perpRayI.ptX[pIndex], perpRayI.ptY[pIndex],
+          perpLine.x1, perpLine.y1)) {
+        finds++;
+      }
+    }
+    perpLine = DLine(thisLine.x0, thisLine.y0,
+        thisLine.x0 + (thisLine.y1 - thisLine.y0),
+        thisLine.y0 + (thisLine.x0 - thisLine.x1);
+        opp.intersectRay(perpRayI, perpLine);
+    for (int pIndex = 0; pIndex < perpRayI.fUsed; ++pIndex) {
+      if (approximatelyEqualPoints(perpRayI.ptX[pIndex], perpRayI.ptY[pIndex],
+          perpLine.x0, perpLine.y0)) {
+        finds++;
+      }
+    }
+    return finds >= 2;
+  }
 }
 
 class TQuad implements TCurve {
