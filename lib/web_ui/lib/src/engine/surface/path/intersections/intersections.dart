@@ -145,21 +145,21 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
             case _SegmentType.kQuadSegment: {
               quad1 = Quad(wtSegment.points);
               quad2 = Quad(wnSegment.points);
-              pts = ts.intersectQuad(quad1!, quad2!);
+              pts = ts.intersectQuad(quad1, quad2);
               break;
             }
             case _SegmentType.kConicSegment: {
               swap = true;
               conic2 = Conic.fromPoints(wnSegment.points, wnSegment.weight);
               quad1 = Quad(wtSegment.points);
-              pts = ts.intersectConicQuad(conic2!, quad1!);
+              pts = ts.intersectConicQuad(conic2, quad1);
               break;
             }
             case _SegmentType.kCubicSegment: {
               swap = true;
               cubic2 = Cubic.fromPoints(wnSegment.points);
               quad1 = Quad(wtSegment.points);
-              pts = ts.intersectCubicQuad(cubic2!, quad1!);
+              pts = ts.intersectCubicQuad(cubic2, quad1);
               break;
             }
             default:
@@ -182,18 +182,18 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
             case _SegmentType.kQuadSegment:
               conic1 = Conic.fromPoints(wtSegment.points, wtSegment.weight);
               quad2 = Quad(wnSegment.points);
-              pts = ts.intersectConicQuad(conic1!, quad2!);
+              pts = ts.intersectConicQuad(conic1, quad2);
               break;
             case _SegmentType.kConicSegment:
               conic1 = Conic.fromPoints(wtSegment.points, wtSegment.weight);
               conic2 = Conic.fromPoints(wnSegment.points, wnSegment.weight);
-              pts = ts.intersectConic(conic1!, conic2!);
+              pts = ts.intersectConic(conic1, conic2);
               break;
             case _SegmentType.kCubicSegment:
               swap = true;
               cubic2 = Cubic.fromPoints(wnSegment.points);
               conic1 = Conic.fromPoints(wtSegment.points, wtSegment.weight);
-              pts = ts.intersectCubicConic(cubic2!, conic1!);
+              pts = ts.intersectCubicConic(cubic2, conic1);
               break;
           }
           break;
@@ -213,17 +213,17 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
             case _SegmentType.kQuadSegment:
               cubic1 = Cubic.fromPoints(wtSegment.points);
               quad2 = Quad(wnSegment.points);
-              pts = ts.intersectCubicQuad(cubic1!, quad2!);
+              pts = ts.intersectCubicQuad(cubic1, quad2);
               break;
             case _SegmentType.kConicSegment:
               cubic1 = Cubic.fromPoints(wtSegment.points);
               conic2 = Conic.fromPoints(wnSegment.points, wnSegment.weight);
-              pts = ts.intersectCubicConic(cubic1!, conic2!);
+              pts = ts.intersectCubicConic(cubic1, conic2);
               break;
             case _SegmentType.kCubicSegment:
               cubic1 = Cubic.fromPoints(wtSegment.points);
               cubic2 = Cubic.fromPoints(wnSegment.points);
-              pts = ts.intersectCubic(cubic1!, cubic2!);
+              pts = ts.intersectCubic(cubic1, cubic2);
               break;
             default:
               assert(false);
@@ -377,7 +377,7 @@ class Intersections {
   final Float64List pt2x = Float64List(2);
   final Float64List pt2y = Float64List(2);
   int fUsed = 0;
-  int fSwap = 0;
+  bool fSwap = false;
   int _fMax = 0;
   bool fAllowNear = true;
 
@@ -1030,6 +1030,29 @@ class Intersections {
     int bit = 1 << index;
     fIsCoincident0 |= bit;
     fIsCoincident1 |= bit;
+  }
+
+  int insertCoincident(double one, double two, ui.Offset pt) {
+    int index = insertSwap(one, two, pt);
+    if (index >= 0) {
+      setCoincident(index);
+    }
+    return index;
+  }
+
+  void clearCoincidence(int index) {
+    assert(index >= 0);
+    int bit = 1 << index;
+    fIsCoincident0 &= ~bit;
+    fIsCoincident1 &= ~bit;
+  }
+
+  int insertSwap(double one, double two, ui.Offset pt) {
+    if (fSwap) {
+      return insertAtOffset(two, one, pt);
+    } else {
+      return insertAtOffset(one, two, pt);
+    }
   }
 
   int intersectQuad(Quad q1, Quad q2) {

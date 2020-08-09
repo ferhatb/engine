@@ -90,7 +90,6 @@ class CubicClassifier {
     d2 *= scaleToNormalize;
     d3 *= scaleToNormalize;
 
-    int type;
     if (d1 != 0) {
       double discr = 3 * d2 * d2 - 4 * d1 * d3;
       if (discr > 0) {

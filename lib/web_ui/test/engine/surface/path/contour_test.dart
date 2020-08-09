@@ -10,7 +10,7 @@ import 'package:ui/src/engine.dart';
 void main() {
   group('ContourBuilder', () {
     test('Should add lines, quad, conic and cubics', () {
-      OpContourBuilder builder = OpContourBuilder();
+      OpContourBuilder builder = OpContourBuilder(OpGlobalState());
       builder.addQuad(offsetListToPoints(
           [Offset(11, 50), Offset(30, 0), Offset(60, 50)]));
       builder.addLine(offsetListToPoints(
@@ -34,7 +34,7 @@ void main() {
     });
 
     test('Should eliminate opposite lines', () {
-      OpContourBuilder builder = OpContourBuilder();
+      OpContourBuilder builder = OpContourBuilder(OpGlobalState());
       builder.addQuad(offsetListToPoints(
           [Offset(10, 50), Offset(30, 0), Offset(60, 50)]));
       builder.addLine(offsetListToPoints(
@@ -48,7 +48,7 @@ void main() {
     });
 
     test('Should not eliminate non-opposing lines', () {
-      OpContourBuilder builder = OpContourBuilder();
+      OpContourBuilder builder = OpContourBuilder(OpGlobalState());
       builder.addQuad(offsetListToPoints(
           [Offset(10, 50), Offset(30, 0), Offset(60, 50)]));
       builder.addLine(offsetListToPoints(

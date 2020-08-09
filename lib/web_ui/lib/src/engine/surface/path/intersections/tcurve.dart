@@ -11,8 +11,13 @@ part of engine;
 abstract class TCurve {
   ui.Offset operator [](int index);
 
-  bool get collapsed;
-  bool get controlsInside;
+  /// Whether control points are approximately equal and curve collapses
+  /// into point.
+  bool collapsed();
+
+  /// Checks angles between points to determine if curve points are inside
+  /// vectors at start and end control points.
+  bool controlsInside();
   /// Slope of curve at t.
   ui.Offset dxdyAtT(double t);
 
@@ -20,6 +25,7 @@ abstract class TCurve {
   _HullIntersectResult hullIntersectsConic(Conic curve); // Returns success, isLinearResult.
   _HullIntersectResult hullIntersectsCubic(Cubic curve); // Returns success, isLinearResult.
   _HullIntersectResult hullIntersects(TCurve curve); // Returns success, isLinearResult.
+
   int intersectRay(Intersections i, DLine line);
   bool get isConic;
   /// Maximum number of intersections with a ray.
@@ -54,7 +60,7 @@ abstract class TCurve {
     }
     perpLine = DLine(thisLine.x0, thisLine.y0,
         thisLine.x0 + (thisLine.y1 - thisLine.y0),
-        thisLine.y0 + (thisLine.x0 - thisLine.x1);
+        thisLine.y0 + (thisLine.x0 - thisLine.x1));
         opp.intersectRay(perpRayI, perpLine);
     for (int pIndex = 0; pIndex < perpRayI.fUsed; ++pIndex) {
       if (approximatelyEqualPoints(perpRayI.ptX[pIndex], perpRayI.ptY[pIndex],
@@ -75,9 +81,9 @@ class TQuad implements TCurve {
   @override
   ui.Offset operator [](int index) => ui.Offset(_xAt(index), _yAt(index));
   @override
-  bool get collapsed => quad.collapsed();
+  bool collapsed() => quad.collapsed();
   @override
-  bool get controlsInside => quad.controlsInside();
+  bool controlsInside() => quad.controlsInside();
   @override
   ui.Offset dxdyAtT(double t) => quad.dxdyAtT(t);
   @override
@@ -118,8 +124,8 @@ class TConic implements TCurve {
   TConic(this.conic);
 
   ui.Offset operator [](int index) => ui.Offset(conic.xAt(index), conic.yAt(index));
-  bool get collapsed => conic.collapsed();
-  bool get controlsInside => conic.controlsInside();
+  bool collapsed() => conic.collapsed();
+  bool controlsInside() => conic.controlsInside();
   ui.Offset dxdyAtT(double t) => conic.dxdyAtT(t);
 
   int intersectRay(Intersections i, DLine line) => i.intersectRayConic(conic, line);
@@ -154,9 +160,9 @@ class TCubic implements TCurve {
   @override
   ui.Offset operator [](int index) => ui.Offset(cubic.xAt(index), cubic.yAt(index));
   @override
-  bool get collapsed => cubic.collapsed();
+  bool collapsed() => cubic.collapsed();
   @override
-  bool get controlsInside => cubic.controlsInside();
+  bool controlsInside() => cubic.controlsInside();
   @override
   ui.Offset dxdyAtT(double t) => cubic.dxdyAtT(t);
   @override

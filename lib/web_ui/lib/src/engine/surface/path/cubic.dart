@@ -198,7 +198,6 @@ class Cubic {
         }
       }
     } else {
-      int resultCount = 0;
       double precision = calcPrecision() * 2;
       List<double> t = [];
       for (int index = 0; index < roots; ++index) {
@@ -644,7 +643,7 @@ class Cubic {
           order.add(side2);
           return 3;
         }
-        Cubic rotPath = rotResult!;
+        Cubic rotPath = rotResult;
         int sides = side(rotPath.yAt(side1) - rotPath.yAt(yMin));
         sides ^= side(rotPath.yAt(side2) - rotPath.yAt(yMin));
         if (sides == 2) { // '2' means one remaining point <0, one >0
@@ -702,7 +701,7 @@ class Cubic {
       order.add(midX); // 2.
       return 3;
     }
-    Cubic midPath = midPathResult!;
+    Cubic midPath = midPathResult;
     int midSides = side(midPath.yAt(yMin) - midPath.yAt(least));
     midSides ^= side(midPath.yAt(midX) - midPath.yAt(least));
     if (midSides != 2) {  // if mid point is not between

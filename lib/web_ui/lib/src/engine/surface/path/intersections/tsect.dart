@@ -8,6 +8,16 @@ part of engine;
 
 const int kCoincidentSpanCount = 9;
 
+/// Finds intersections between 2 curves (quadratic and cubic).
+///
+/// Usage:
+///   TCubic cubic = TCubic(c);
+///    TQuad quad = TQuad(q);
+///    TSect sect1 = TSect(cubic);
+///    TSect sect2 = TSect(quad);
+///    TSect.binarySearch(sect1, sect2, this);
+///
+/// Adds intersections and coincidence results to [Intersections].
 class TSect {
   TSect(TCurve c) : fCurve = c {
     fHead = addOne()
@@ -22,8 +32,8 @@ class TSect {
   bool fHung = false;
   TSpan? fHead;
   TSpan? fCoincident;
-  // Linked list of deleted TSpan for reuse.
-  TSpan? fDeleted;
+  // List of deleted [TSpan](s) for reuse or recovery (if collapsed).
+  List<TSpan> deletedSpans = [];
   bool fRemovedStartT = false;
   bool fRemovedEndT = false;
   _TSectDebug? debugInfo;
@@ -32,22 +42,62 @@ class TSect {
     fRemovedStartT = fRemovedEndT = false;
   }
 
-  /// Adds a new span.
+  /// Creates a new span by reusing a deleted span or allocating a new one.
   TSpan addOne() {
     TSpan result;
     // Reuse a delete TSpan is possible.
-    if (fDeleted != null) {
-      result = fDeleted!;
-      fDeleted = result.next;
+    if (deletedSpans.isNotEmpty) {
+      result = deletedSpans.removeLast();
     } else {
       // Allocate new TSpan
       result = TSpan(fCurve);
     }
     result.reset();
-    result..fHasPerp = false;
+    result.fHasPerp = false;
     result.fDeleted = false;
-
     ++fActiveCount;
+    return result;
+  }
+
+  /// Add t for perpendicular.
+  void addForPerp(TSpan span, double t) {
+    if (!span.hasOppT(t)) {
+      // Find span at t and prior.
+      TSpan? priorSpan;
+      TSpan? test = fHead;
+      while (test != null && test.endT < t) {
+        priorSpan = test;
+        test = test.next;
+      }
+      TSpan? opp = test != null && test.startT <= t ? test : null;
+      if (opp == null) {
+        opp = addFollowing(priorSpan);
+      }
+      opp.addBounded(span);
+      span.addBounded(opp);
+    }
+    validate();
+  }
+
+  /// Append to prior or insert before head.
+  TSpan addFollowing(TSpan? prior) {
+    TSpan result = addOne();
+    result._fStartT = prior != null ? prior.endT : 0;
+    TSpan? next = prior != null ? prior.next : fHead;
+    result._fEndT = next != null ? next.startT : 1;
+    result._fPrev = prior;
+    result._fNext = next;
+    if (prior != null) {
+      prior._fNext = result;
+    } else {
+      fHead = result;
+    }
+    if (next != null) {
+      next._fPrev = result;
+    }
+    result.resetBounds(fCurve);
+    // World may not be consistent to call validate here
+    result.validate();
     return result;
   }
 
@@ -60,25 +110,25 @@ class TSect {
       if (test!.findOppSpan(span) != null) {
         return true;
       }
-    } while ((test = test!.next) != null);
+    } while ((test = test.next) != null);
     return false;
   }
 
   TSpan? boundsMax() {
     TSpan? test = fHead;
     TSpan largest = fHead!;
-    bool lCollapsed = largest.fCollapsed;
+    bool lCollapsed = largest.collapsed;
     int safetyNet = 10000;
     while ((test = test!.next) != null) {
       if (--safetyNet == 0) {
         fHung = true;
         return null;
       }
-      bool tCollapsed = test!.fCollapsed;
+      bool tCollapsed = test!.collapsed;
       if ((lCollapsed && !tCollapsed) || (lCollapsed == tCollapsed &&
-        largest.fBoundsMax < test!.fBoundsMax)) {
-        largest = test!;
-        lCollapsed = test!.fCollapsed;
+        largest.fBoundsMax < test.fBoundsMax)) {
+        largest = test;
+        lCollapsed = test.collapsed;
       }
     }
     return largest;
@@ -88,14 +138,15 @@ class TSect {
     return fCurve[fCurve.pointLast];
   }
 
-  static void binarySearch(TSect sect1, TSect sect2, Intersections intersections) {
+  static void binarySearch(TSect sect1, TSect sect2,
+      Intersections intersections) {
     assert(sect1.debugInfo!.fOppSect == sect2);
     assert(sect2.debugInfo!.fOppSect == sect1);
     intersections.reset();
     intersections.setMax(sect1.fCurve.maxIntersections + 4);  // Extra for slop
     TSpan span1 = sect1.fHead!;
     TSpan span2 = sect2.fHead!;
-    List<int> res = sect1.intersects(span1,sect2,span2);
+    List<int> res = sect1.intersects(span1, sect2, span2);
     int sect = res[0];
     int oppSect = res[1];
     assert(SPath.between(0, sect.toDouble(), 2));
@@ -126,11 +177,11 @@ class TSect {
       // split it
       if (largest2 == null ||
           (largest1 != null && (largest1.fBoundsMax > largest2.fBoundsMax
-                || (!largest1.fCollapsed && largest2.fCollapsed)))) {
+                || (!largest1.collapsed && largest2.collapsed)))) {
         if (sect2.fHung) {
           return;
         }
-        if (largest1.fCollapsed) {
+        if (largest1.collapsed) {
           break;
         }
         sect1.resetRemovedEnds();
@@ -147,7 +198,7 @@ class TSect {
           return;
         }
       } else {
-        if (largest2.fCollapsed) {
+        if (largest2.collapsed) {
           break;
         }
         sect1.resetRemovedEnds();
@@ -196,17 +247,17 @@ class TSect {
         if (sect1.fHead == null) {
           return;
         }
-        sect1.computePerpendiculars(sect2, sect1.fHead, sect1.tail);
+        sect1.computePerpendiculars(sect2, sect1.fHead!, sect1.tail());
         if (sect2.fHead == null) {
           return;
         }
-        sect2.computePerpendiculars(sect1, sect2.fHead, sect2.tail);
+        sect2.computePerpendiculars(sect1, sect2.fHead!, sect2.tail());
         if (!sect1.removeByPerpendicular(sect2)) {
           return;
         }
         sect1.validate();
         sect2.validate();
-        if (sect1.collapsed > sect1.fCurve.maxIntersections) {
+        if (sect1.collapsed() > sect1.fCurve.maxIntersections) {
           break;
         }
       }
@@ -216,9 +267,10 @@ class TSect {
     } while (true);
     TSpan? coincident = sect1.fCoincident;
     if (coincident != null) {
-      // if there is more than one coincident span, check loosely to see if they should be joined
-      if (coincident.next) {
-          sect1.mergeCoincidence(sect2);
+      // If there is more than one coincident span, check loosely to see if
+      // they should be joined.
+      if (coincident.next != null) {
+          sect1._mergeCoincidence(sect2);
           coincident = sect1.fCoincident;
       }
       assert(sect2.fCoincident != null);  // courtesy check : coincidence only looks at sect 1
@@ -281,12 +333,12 @@ class TSect {
     }
     sect1.recoverCollapsed();
     sect2.recoverCollapsed();
-    TSpan result1 = sect1.fHead!;
+    TSpan? result1 = sect1.fHead;
     // check heads and tails for zero and ones and insert them if we haven't already done so
-    TSpan head1 = result1;
-    if ((zeroOneSet & kFirstS1Set) == 0 && approximatelyLessThanZero(head1.startT)) {
+    TSpan? head1 = result1;
+    if ((zeroOneSet & kFirstS1Set) == 0 && approximatelyLessThanZero(head1!.startT)) {
       ui.Offset start1 = sect1.fCurve[0];
-      if (head1.isBounded()) {
+      if (head1.isBounded) {
         double t = head1.closestBoundedT(start1);
         ui.Offset pt = sect2.fCurve.ptAtT(t);
         if (approximatelyEqualPoints(pt.dx, pt.dy, start1.dx, start1.dy)) {
@@ -294,10 +346,10 @@ class TSect {
         }
       }
     }
-    TSpan head2 = sect2.fHead;
-    if (!(zeroOneSet & kFirstS2Set) && approximatelyLessThanZero(head2.startT)) {
+    TSpan head2 = sect2.fHead!;
+    if ((zeroOneSet & kFirstS2Set) == 0 && approximatelyLessThanZero(head2.startT)) {
       ui.Offset start2 = sect2.fCurve[0];
-      if (head2.isBounded()) {
+      if (head2.isBounded) {
         double t = head2.closestBoundedT(start2);
         ui.Offset pt = sect1.fCurve.ptAtT(t);
         if (approximatelyEqualPoints(pt.dx, pt.dy, start2.dx, start2.dy)) {
@@ -306,82 +358,85 @@ class TSect {
       }
     }
     if ((zeroOneSet & kLastS1Set) == 0) {
-      TSpan? tail1 = sect1.tail;
+      TSpan? tail1 = sect1.tail();
       if (tail1 == null) {
         return;
       }
       if (approximatelyGreaterThanOne(tail1.endT)) {
-          ui.Offset end1 = sect1.pointLast;
-          if (tail1.isBounded) {
-              double t = tail1.closestBoundedT(end1);
-              ui.Offset pt = sect2.fCurve.ptAtT(t);
-              if (approximatelyEqualPoints(pt.dx, pt.dy, end1.dx, end1.dy)) {
-                  intersections->insert(1, t, end1);
-              }
-          }
-      }
-    }
-    if (!(zeroOneSet & kLastS2Set)) {
-        TSpan? tail2 = sect2.tail;
-        if (tail2 == null) {
-          return;
-        }
-        if (approximatelyGreaterThanOne(tail2.endT)) {
-            ui.Offset end2 = sect2.pointLast;
-            if (tail2.isBounded()) {
-                double t = tail2.closestBoundedT(end2);
-                if (sect1->fCurve.ptAtT(t).approximatelyEqual(end2)) {
-                    intersections->insert(t, 1, end2);
-                }
+        ui.Offset end1 = sect1.pointLast;
+        if (tail1.isBounded) {
+            double t = tail1.closestBoundedT(end1);
+            ui.Offset pt = sect2.fCurve.ptAtT(t);
+            if (approximatelyEqualPoints(pt.dx, pt.dy, end1.dx, end1.dy)) {
+                intersections.insert(1, t, end1.dx, end1.dy);
             }
         }
+      }
     }
-    SkClosestSect closest;
+    if ((zeroOneSet & kLastS2Set) == 0) {
+      TSpan? tail2 = sect2.tail();
+      if (tail2 == null) {
+        return;
+      }
+      if (approximatelyGreaterThanOne(tail2.endT)) {
+        ui.Offset end2 = sect2.pointLast;
+        if (tail2.isBounded) {
+          double t = tail2.closestBoundedT(end2);
+          ui.Offset pt = sect1.fCurve.ptAtT(t);
+          if (approximatelyEqualPoints(pt.dx, pt.dy, end2.dx, end2.dy)) {
+            intersections.insert(t, 1, end2.dx, end2.dy);
+          }
+        }
+      }
+    }
+    ClosestSect closest = ClosestSect();
     do {
-        while (result1 && result1->fCoinStart.isMatch() && result1->fCoinEnd.isMatch()) {
-            result1 = result1->fNext;
-        }
-        if (!result1) {
-            break;
-        }
-        SkTSpan* result2 = sect2->fHead;
-        bool found = false;
-        while (result2) {
-            found |= closest.find(result1, result2  SkDEBUGPARAMS(intersections));
-            result2 = result2->fNext;
-        }
-    } while ((result1 = result1->fNext));
+      while (result1 != null && result1.fCoinStart.isMatch && result1.fCoinEnd.isMatch) {
+        result1 = result1.next;
+      }
+      if (result1 == null) {
+          break;
+      }
+      TSpan? result2 = sect2.fHead;
+      bool found = false;
+      while (result2 != null) {
+        found |= closest.find(result1, result2);
+        result2 = result2.next;
+      }
+    } while ((result1 = result1.next) != null);
     closest.finish(intersections);
-    // if there is more than one intersection and it isn't already coincident, check
-    int last = intersections->used() - 1;
+    // if there is more than one intersection and it isn't already coincident,
+    // check.
+    int last = intersections.fUsed - 1;
     for (int index = 0; index < last; ) {
-        if (intersections->isCoincident(index) && intersections->isCoincident(index + 1)) {
-            ++index;
-            continue;
-        }
-        double midT = ((*intersections)[0][index] + (*intersections)[0][index + 1]) / 2;
-        SkDPoint midPt = sect1->fCurve.ptAtT(midT);
-        // intersect perpendicular with opposite curve
-        SkTCoincident perp;
-        perp.setPerp(sect1->fCurve, midT, midPt, sect2->fCurve);
-        if (!perp.isMatch()) {
-            ++index;
-            continue;
-        }
-        if (intersections->isCoincident(index)) {
-            intersections->removeOne(index);
-            --last;
-        } else if (intersections->isCoincident(index + 1)) {
-            intersections->removeOne(index + 1);
-            --last;
-        } else {
-            intersections->setCoincident(index++);
-        }
-        intersections->setCoincident(index);
+      if (intersections.isCoincident(index) && intersections.isCoincident(index + 1)) {
+        ++index;
+        continue;
+      }
+      double midT = (intersections.fT0[index] + intersections.fT0[index + 1]) / 2;
+      ui.Offset midPt = sect1.fCurve.ptAtT(midT);
+      // intersect perpendicular with opposite curve
+      TCoincident perp = TCoincident();
+      perp.setPerp(sect1.fCurve, midT, midPt, sect2.fCurve);
+      if (!perp.isMatch) {
+        ++index;
+        continue;
+      }
+      if (intersections.isCoincident(index)) {
+          intersections.removeOne(index);
+          --last;
+      } else if (intersections.isCoincident(index + 1)) {
+          intersections.removeOne(index + 1);
+          --last;
+      } else {
+          intersections.setCoincident(index++);
+      }
+      intersections.setCoincident(index);
     }
-    SkOPOBJASSERT(intersections, intersections->used() <= sect1->fCurve.maxIntersections());
+    assert(intersections.fUsed <= sect1.fCurve.maxIntersections);
   }
 
+  /// Checks if [span] hull intersects opposite span.
   List<int> intersects(TSpan span, TSect opp, TSpan oppSpan) {
     int oppResult = 0;
     HullCheckResult result = HullCheckResult();
@@ -445,7 +500,7 @@ class TSect {
         HullCheckResult.kHullIntersects];
   }
 
-  // while the intersection points are sufficiently far apart:
+  // While the intersection points are sufficiently far apart:
   // construct the tangent lines from the intersections
   // find the point where the tangent line intersects the opposite curve
   int linesIntersect(TSpan span, TSect opp, TSpan oppSpan, Intersections i) {
@@ -465,7 +520,8 @@ class TSect {
     if (fCurve.intersectRay(oppRayI, oppLine) == 0) {
       return 0;
     }
-    // if the ends of each line intersect the opposite curve, the lines are coincident
+    // If the ends of each line intersect the opposite curve,
+    // the lines are coincident.
     if (thisRayI.fUsed > 1) {
       int ptMatches = 0;
       for (int tIndex = 0; tIndex < thisRayI.fUsed; ++tIndex) {
@@ -484,13 +540,13 @@ class TSect {
     if (oppRayI.fUsed > 1) {
       int ptMatches = 0;
       for (int oIndex = 0; oIndex < oppRayI.fUsed; ++oIndex) {
-          for (int lIndex = 0; lIndex < DLine.kPointCount; ++lIndex) {
-            if (approximatelyEqualPoints(
-                oppRayI.ptX[oIndex], oppRayI.ptY[oIndex],
-                oppLine.xAt(lIndex), oppLine.yAt(lIndex))) {
-              ++ptMatches;
-            }
+        for (int lIndex = 0; lIndex < DLine.kPointCount; ++lIndex) {
+          if (approximatelyEqualPoints(
+              oppRayI.ptX[oIndex], oppRayI.ptY[oIndex],
+              oppLine.xAt(lIndex), oppLine.yAt(lIndex))) {
+            ++ptMatches;
           }
+        }
       }
       // !This optimization only works for opp conic for now.
       if (ptMatches == 2 || TCurve.isParallel(oppLine, fCurve)) {
@@ -695,7 +751,7 @@ class TSect {
     }
     _TSpanBounded? testBounded = span.fBounded;
     while (testBounded != null) {
-      TSpan test = testBounded.fBounded!;
+      TSpan test = testBounded.fBounded;
       _TSpanBounded? next = testBounded.next;
       List<int> res = intersects(span, opp, test);
       int sects = res[0];
@@ -712,10 +768,10 @@ class TSect {
         }
       } else {
         if (span.removeBounded(test)) {
-          this.removeSpan(span);
+          this._removeSpan(span);
         }
         if (test.removeBounded(span)) {
-          opp.removeSpan(test);
+          opp._removeSpan(test);
         }
       }
       testBounded = next;
@@ -723,7 +779,7 @@ class TSect {
     return true;
   }
 
-  bool removeSpan(TSpan span) {
+  bool _removeSpan(TSpan span) {
     _removedEndCheck(span);
     if (!_unlinkSpan(span)) {
       return false;
@@ -734,13 +790,13 @@ class TSect {
   void removeAllBut(TSpan keep, TSpan span, TSect opp) {
     _TSpanBounded? testBounded = span.fBounded;
     while (testBounded != null) {
-      TSpan bounded = testBounded.fBounded!;
+      TSpan bounded = testBounded.fBounded;
       _TSpanBounded? next = testBounded.next;
       // may have been deleted when opp did 'remove all but'
       if (bounded != keep && !bounded.fDeleted) {
         span.removeBounded(bounded);
         if (bounded.removeBounded(span)) {
-          opp.removeSpan(bounded);
+          opp._removeSpan(bounded);
         }
       }
       testBounded = next;
@@ -771,12 +827,12 @@ class TSect {
     return true;
   }
 
+  /// Recycles span to be used for later allocations.
   bool _markSpanGone(TSpan span) {
     if (--fActiveCount < 0) {
       return false;
     }
-    span._fNext = fDeleted;
-    fDeleted = span;
+    deletedSpans.add(span);
     assert(!span.fDeleted);
     span.fDeleted = true;
     return true;
@@ -801,10 +857,10 @@ class TSect {
       TSpan? next;
       do {
         span!.validate();
-        assert(span!.startT >= last);
-        last = span!.endT;
+        assert(span.startT >= last);
+        last = span.endT;
         ++count;
-        next = span!.next;
+        next = span.next;
         assert(next != span);
       } while ((span = next) != null);
     }
@@ -820,81 +876,409 @@ class TSect {
         return null;
       }
       if (next!.endT > result.endT) {
-        result = next!;
+        result = next;
       }
     }
     return result;
   }
 
-  bool coincidentCheck(SkTSect* sect2) {
-    SkTSpan* first = fHead;
-    if (!first) {
-        return false;
+  bool coincidentCheck(TSect sect2) {
+    TSpan? first = fHead;
+    if (first == null) {
+      return false;
     }
-    SkTSpan* last, * next;
+    TSpan? last, next;
     do {
-        int consecutive = this->countConsecutiveSpans(first, &last);
-        next = last->fNext;
-        if (consecutive < COINCIDENT_SPAN_COUNT) {
+        /// Count number of spans with consecutive t ranges (no gaps).
+        int consecutive = 1;
+        last = first;
+        do {
+          TSpan? next = last?.next;
+          if (next == null) {
+            break;
+          }
+          if (next.startT > last!.endT) {
+            // Found gap, break.
+            break;
+          }
+          ++consecutive;
+          last = next;
+        } while (true);
+        // Move to next consecutive range.
+        next = last!.next;
+        // Skip if larger than max coincident spans.
+        if (consecutive < kCoincidentSpanCount) {
+          continue;
+        }
+        validate();
+        sect2.validate();
+        computePerpendiculars(sect2, first!, last);
+        this.validate();
+        sect2.validate();
+        // Check to see if a range of points are on the curve.
+        TSpan? coinStart = first;
+        do {
+          _CoincidentResult res = extractCoincident(sect2, coinStart, last);
+          if (!res.success) {
+            return false;
+          }
+          coinStart = res.coin;
+        } while (coinStart != null && !last.fDeleted);
+        if (fHead == null || sect2.fHead == null) {
+          break;
+        }
+        if (next == null || next.fDeleted) {
+          break;
+        }
+    } while ((first = next) != null);
+    return true;
+  }
+
+  void coincidentForce(TSect sect2, double start1s, double start1e) {
+    TSpan first = fHead!;
+    TSpan? last = tail();
+    TSpan oppFirst = sect2.fHead!;
+    TSpan? oppLast = sect2.tail();
+    if (last == null || oppLast == null) {
+      return;
+    }
+    bool deleteEmptySpans = updateBounded(first, last, oppFirst);
+    deleteEmptySpans |= sect2.updateBounded(oppFirst, oppLast, first);
+    _removeSpanRange(first, last);
+    sect2._removeSpanRange(oppFirst, oppLast);
+    first._fStartT = start1s;
+    first._fEndT = start1e;
+    first.resetBounds(fCurve);
+    first.fCoinStart.setPerp(fCurve, start1s, fCurve[0], sect2.fCurve);
+    first.fCoinEnd.setPerp(fCurve, start1e, pointLast, sect2.fCurve);
+    bool oppMatched = first.fCoinStart.perpT < first.fCoinEnd.perpT;
+    double oppStartT = first.fCoinStart.perpT == -1 ? 0 : math.max(0, first.fCoinStart.perpT);
+    double oppEndT = first.fCoinEnd.perpT == -1 ? 1 : math.min(1, first.fCoinEnd.perpT);
+    if (!oppMatched) {
+      double temp = oppStartT;
+      oppStartT = oppEndT;
+      oppEndT = temp;
+    }
+    oppFirst._fStartT = oppStartT;
+    oppFirst._fEndT = oppEndT;
+    oppFirst.resetBounds(sect2.fCurve);
+    removeCoincident(first, false);
+    sect2.removeCoincident(oppFirst, true);
+    if (deleteEmptySpans) {
+      _deleteEmptySpans();
+      sect2._deleteEmptySpans();
+    }
+  }
+
+  _CoincidentResult extractCoincident(TSect sect2, TSpan? first, TSpan? last) {
+    _FindCoincidentResult res = findCoincidentRun(first, last);
+    first = res.first;
+    last = res.last;
+    if (first == null || last == null) {
+      return _CoincidentResult(true, null);
+    }
+    // March outwards to find limit of coincidence from here to previous and
+    // next spans.
+    double startT = first.startT;
+    double oppStartT = 0;
+    double oppEndT = 0;
+    TSpan? prev = first._fPrev;
+    assert(first.fCoinStart.isMatch);
+    TSpan? oppFirst = first.findOppT(first.fCoinStart.perpT);
+    assert(last.fCoinEnd.isMatch);
+    bool oppMatched = first.fCoinStart.perpT < first.fCoinEnd.perpT;
+    double coinStart = 0;
+    TSpan? cutFirst;
+    if (prev != null && prev.endT == startT) {
+      _SearchCoinResult searchRes = binarySearchCoin(sect2, startT, prev.startT - startT);
+      coinStart = searchRes.t;
+      oppStartT = searchRes.oppT;
+      oppFirst = searchRes.oppFirst;
+      if (searchRes.success && prev.startT < coinStart && coinStart < startT
+            && null != (cutFirst = prev.oppT(oppStartT))) {
+        oppFirst = cutFirst;
+        first = addSplitAt(prev, coinStart);
+        first.markCoincident();
+        prev.fCoinEnd.markCoincident();
+        if (oppFirst!.startT < oppStartT && oppStartT < oppFirst.endT) {
+          TSpan oppHalf = sect2.addSplitAt(oppFirst, oppStartT);
+          if (oppMatched) {
+            oppFirst.fCoinEnd.markCoincident();
+            oppHalf.markCoincident();
+            oppFirst = oppHalf;
+          } else {
+            oppFirst.markCoincident();
+            oppHalf.fCoinStart.markCoincident();
+          }
+        }
+      }
+    }
+    if (oppFirst == null) {
+      return _CoincidentResult.failure();
+    }
+    // TODO: if we're not at the end, find end of coin
+    TSpan oppLast;
+    assert(last.fCoinEnd.isMatch);
+    oppLast = last.findOppT(last.fCoinEnd.perpT);
+    if (!oppMatched) {
+      TSpan swapSpan = oppFirst;
+      oppFirst = oppLast;
+      oppLast = swapSpan;
+      double swapT = oppStartT;
+      oppStartT = oppEndT;
+      oppEndT = swapT;
+    }
+    assert(oppStartT < oppEndT);
+    assert(coinStart == first.startT);
+    if (oppFirst == null) {
+      return _CoincidentResult(true, null);
+    }
+    assert(oppStartT == oppFirst.startT);
+    if (oppLast == null) {
+      return _CoincidentResult(true, null);
+    }
+    assert(oppEndT == oppLast.endT);
+    // Reduce coincident runs to single entries
+    validate();
+    sect2.validate();
+    bool deleteEmptySpans = updateBounded(first, last, oppFirst);
+    deleteEmptySpans |= sect2.updateBounded(oppFirst, oppLast, first);
+    _removeSpanRange(first, last);
+    sect2._removeSpanRange(oppFirst, oppLast);
+    first._fEndT = last.endT;
+    first.resetBounds(fCurve);
+    first.fCoinStart.setPerp(fCurve, first.startT, first.pointFirst, sect2.fCurve);
+    first.fCoinEnd.setPerp(fCurve, first.endT, first.pointLast, sect2.fCurve);
+    oppStartT = first.fCoinStart.perpT;
+    oppEndT = first.fCoinEnd.perpT;
+    if (SPath.between(0, oppStartT, 1) && SPath.between(0, oppEndT, 1)) {
+      if (!oppMatched) {
+        double swapTemp = oppStartT;
+        oppStartT = oppEndT;
+        oppEndT = swapTemp;
+      }
+      oppFirst._fStartT = oppStartT;
+      oppFirst._fEndT = oppEndT;
+      oppFirst.resetBounds(sect2.fCurve);
+    }
+    last = first.next;
+    if (!removeCoincident(first, false)) {
+      return _CoincidentResult.failure();
+    }
+    if (!sect2.removeCoincident(oppFirst, true)) {
+      return _CoincidentResult.failure();
+    }
+    if (deleteEmptySpans) {
+      if (!_deleteEmptySpans() || !sect2._deleteEmptySpans()) {
+        return _CoincidentResult.failure();
+      }
+    }
+    validate();
+    sect2.validate();
+    return _CoincidentResult(last != null, last != null &&
+       !last.fDeleted && fHead != null && sect2.fHead != null ? last : null);
+  }
+
+  _FindCoincidentResult findCoincidentRun(TSpan? first, TSpan? last) {
+    TSpan? work = first;
+    TSpan? lastCandidate;
+    first = null;
+    // Find the first fully coincident span.
+    do {
+      if (work!.fCoinStart.isMatch) {
+        assert(work.hasOppT(work.fCoinStart.perpT));
+        if (!work.fCoinEnd.isMatch) {
+          break;
+        }
+        lastCandidate = work;
+        if (first == null) {
+          first = work;
+        }
+      } else if (first != null && work.collapsed) {
+        last = lastCandidate;
+        return _FindCoincidentResult(first, last);
+      } else {
+        lastCandidate = null;
+        assert(first == null);
+      }
+      if (work == last) {
+        return _FindCoincidentResult(first, last);
+      }
+      work = work.next;
+      if (work == null) {
+        _FindCoincidentResult(null, last);
+      }
+    } while (true);
+    if (lastCandidate != null) {
+      last = lastCandidate;
+    }
+    return _FindCoincidentResult(first, last);
+  }
+
+  _SearchCoinResult binarySearchCoin(TSect sect2, double tStart, double tStep) {
+    _SearchCoinResult searchResult = _SearchCoinResult();
+    TSpan work = TSpan(fCurve);
+    double result = work._fStartT = work._fEndT = tStart;
+    ui.Offset last = fCurve.ptAtT(tStart);
+    ui.Offset? oppPt;
+    bool flip = false;
+    bool contained = false;
+    bool down = tStep < 0;
+    TCurve opp = sect2.fCurve;
+    do {
+      tStep *= 0.5;
+      work._fStartT += tStep;
+      if (flip) {
+        tStep = -tStep;
+        flip = false;
+      }
+      work.initBounds(fCurve);
+      if (work.collapsed) {
+        return searchResult;
+      }
+      ui.Offset pointFirst = work.pointFirst;
+      if (approximatelyEqualPoints(last.dx, last.dy, pointFirst.dx, pointFirst.dy)) {
+        break;
+      }
+      last = pointFirst;
+      work.fCoinStart.setPerp(fCurve, work.startT, last, opp);
+      if (work.fCoinStart.isMatch) {
+        double oppTTest = work.fCoinStart.perpT;
+          if (sect2.fHead!.contains(oppTTest)) {
+              searchResult.oppT = oppTTest;
+              oppPt = work.fCoinStart.perpPt;
+              contained = true;
+              if (down ? result <= work.startT : result >= work.startT) {
+                  searchResult.oppFirst = null;
+                  return searchResult;
+              }
+              result = work.startT;
+              continue;
+          }
+      }
+      tStep = -tStep;
+      flip = true;
+    } while (true);
+    if (!contained) {
+      return searchResult;
+    }
+    if (approximatelyEqualPoints(last.dx, last.dy, fCurve[0].dx, fCurve[0].dy)) {
+      result = 0;
+    } else if (approximatelyEqualPoints(last.dx, last.dy, pointLast.dx, pointLast.dy)) {
+      result = 1;
+    }
+    if (approximatelyEqualPoints(oppPt!.dx, oppPt.dy, opp[0].dx, opp[0].dy)) {
+      searchResult.oppT = 0;
+    } else if (approximatelyEqualPoints(oppPt.dx, oppPt.dy, sect2.pointLast.dx, sect2.pointLast.dy)) {
+      searchResult.oppT = 1;
+    }
+    searchResult.t = result;
+    return searchResult;
+  }
+
+  void _mergeCoincidence(TSect sect2) {
+    double smallLimit = 0;
+    do {
+      // Find the smallest unprocessed span
+      TSpan? smaller;
+      TSpan? test = fCoincident;
+      do {
+        if (test == null) {
+          return;
+        }
+        if (test.startT < smallLimit) {
+          continue;
+        }
+        if (smaller != null && smaller.endT < test.startT) {
+          continue;
+        }
+        smaller = test;
+      } while ((test = test.next) != null);
+      if (smaller == null) {
+        return;
+      }
+      smallLimit = smaller.endT;
+      // Find next larger span.
+      TSpan? prior;
+      TSpan? larger;
+      TSpan? largerPrior;
+      test = fCoincident;
+      do {
+        if (test!.startT < smaller.endT) {
             continue;
         }
-        this->validate();
-        sect2->validate();
-        this->computePerpendiculars(sect2, first, last);
-        this->validate();
-        sect2->validate();
-        // check to see if a range of points are on the curve
-        SkTSpan* coinStart = first;
-        do {
-            bool success = this->extractCoincident(sect2, coinStart, last, &coinStart);
-            if (!success) {
-                return false;
-            }
-        } while (coinStart && !last->fDeleted);
-        if (!fHead || !sect2->fHead) {
-            break;
+        assert(test.startT != smaller.endT);
+        if (larger != null && larger.startT < test.startT) {
+          continue;
         }
-        if (!next || next->fDeleted) {
-            break;
+        largerPrior = prior;
+        larger = test;
+        prior = test;
+        test = test.next;
+      } while (test != null);
+      if (larger == null) {
+        continue;
+      }
+      // Check middle t value to see if it is coincident as well
+      double midT = (smaller.endT + larger.startT) / 2;
+      ui.Offset midPt = fCurve.ptAtT(midT);
+      TCoincident coin = TCoincident();
+      coin.setPerp(fCurve, midT, midPt, sect2.fCurve);
+      if (coin.isMatch) {
+        smaller._fEndT = larger._fEndT;
+        smaller.fCoinEnd = larger.fCoinEnd;
+        if (largerPrior != null) {
+          largerPrior._fNext = larger._fNext;
+          largerPrior.validate();
+        } else {
+          fCoincident = larger.next;
         }
-    } while ((first = next));
-    return true;
-}
+      }
+    } while (true);
+  }
 
-  void SkTSect::coincidentForce(SkTSect* sect2,
-        double start1s, double start1e) {
-    SkTSpan* first = fHead;
-    SkTSpan* last = this->tail();
-    SkTSpan* oppFirst = sect2->fHead;
-    SkTSpan* oppLast = sect2->tail();
-    if (!last || !oppLast) {
-        return;
+  void computePerpendiculars(TSect sect2,
+        TSpan first, TSpan? last) {
+    if (last == null) {
+      return;
     }
-    bool deleteEmptySpans = this->updateBounded(first, last, oppFirst);
-    deleteEmptySpans |= sect2->updateBounded(oppFirst, oppLast, first);
-    this->removeSpanRange(first, last);
-    sect2->removeSpanRange(oppFirst, oppLast);
-    first->fStartT = start1s;
-    first->fEndT = start1e;
-    first->resetBounds(fCurve);
-    first->fCoinStart.setPerp(fCurve, start1s, fCurve[0], sect2->fCurve);
-    first->fCoinEnd.setPerp(fCurve, start1e, this->pointLast(), sect2->fCurve);
-    bool oppMatched = first->fCoinStart.perpT() < first->fCoinEnd.perpT();
-    double oppStartT = first->fCoinStart.perpT() == -1 ? 0 : std::max(0., first->fCoinStart.perpT());
-    double oppEndT = first->fCoinEnd.perpT() == -1 ? 1 : std::min(1., first->fCoinEnd.perpT());
-    if (!oppMatched) {
-        using std::swap;
-        swap(oppStartT, oppEndT);
-    }
-    oppFirst->fStartT = oppStartT;
-    oppFirst->fEndT = oppEndT;
-    oppFirst->resetBounds(sect2->fCurve);
-    this->removeCoincident(first, false);
-    sect2->removeCoincident(oppFirst, true);
-    if (deleteEmptySpans) {
-        this->deleteEmptySpans();
-        sect2->deleteEmptySpans();
-    }
+    TCurve opp = sect2.fCurve;
+    TSpan? w = first;
+    TSpan? prior;
+    do {
+      TSpan work = w!;
+      if (!work.fHasPerp && !work.collapsed) {
+        if (prior != null) {
+          work.fCoinStart = prior.fCoinEnd;
+        } else {
+          work.fCoinStart.setPerp(fCurve, work.startT, work.pointFirst, opp);
+        }
+        if (work.fCoinStart.isMatch) {
+          double perpT = work.fCoinStart.perpT;
+          if (sect2.coincidentHasT(perpT)) {
+            work.fCoinStart.init();
+          } else {
+            sect2.addForPerp(work, perpT);
+          }
+        }
+        work.fCoinEnd.setPerp(fCurve, work.endT, work.pointLast, opp);
+        if (work.fCoinEnd.isMatch) {
+            double perpT = work.fCoinEnd.perpT;
+            if (sect2.coincidentHasT(perpT)) {
+                work.fCoinEnd.init();
+            } else {
+                sect2.addForPerp(work, perpT);
+            }
+        }
+        work.fHasPerp = true;
+      }
+      if (work == last) {
+        break;
+      }
+      prior = work;
+      w = w.next;
+      assert(w != null);
+    } while (true);
   }
 
   bool coincidentHasT(double t) {
@@ -912,12 +1296,147 @@ class TSect {
     int result = 0;
     TSpan? test = fHead;
     while (test != null) {
-      if (test.fCollapsed) {
+      if (test.collapsed) {
         ++result;
       }
       test = test.next;
     }
     return result;
+  }
+
+  /// Recover deleted spans that are collapsed.
+  void recoverCollapsed() {
+    for (int index = 0; index < deletedSpans.length; ++index) {
+      TSpan deleted = deletedSpans[index];
+      if (deleted.collapsed) {
+        // Find first span that exceeds deleted startT.
+        TSpan? spanPtr = fHead;
+        while (spanPtr != null && spanPtr.endT <= deleted.startT) {
+          spanPtr = spanPtr.next;
+        }
+        deleted._fNext = spanPtr;
+        if (spanPtr == fHead) {
+          fHead = deleted;
+        } else {
+          spanPtr!._fPrev!._fNext = deleted;
+        }
+      }
+      deletedSpans.removeAt(index);
+      index--;
+    }
+  }
+
+  bool updateBounded(TSpan first, TSpan last, TSpan oppFirst) {
+    TSpan? test = first;
+    TSpan? finalSpan = last.next;
+    bool deleteSpan = false;
+    do {
+      deleteSpan |= test!.removeAllBounded();
+    } while ((test = test.next) != finalSpan && test != null);
+    first.fBounded = null;
+    first.addBounded(oppFirst);
+    // cannot call validate until remove span range is called
+    return deleteSpan;
+  }
+
+  void _removeSpanRange(TSpan first, TSpan last) {
+    if (first == last) {
+      return;
+    }
+    TSpan? span = first;
+    TSpan? finalSpan = last.next;
+    TSpan? next = span!.next;
+    while ((span = next) != null && span != finalSpan) {
+      next = span!.next;
+      _markSpanGone(span);
+    }
+    if (finalSpan != null) {
+      finalSpan._fPrev = first;
+    }
+    first._fNext = finalSpan;
+    first.validate();
+  }
+
+  bool removeByPerpendicular(TSect opp) {
+    TSpan? test = fHead;
+    TSpan? next;
+    do {
+        next = test!.next;
+        if (test.fCoinStart.perpT < 0 || test.fCoinEnd.perpT < 0) {
+          // Span has no perpendicular skip.
+          continue;
+        }
+        ui.Offset startV = test.fCoinStart.perpPt - test.pointFirst;
+        ui.Offset endV = test.fCoinEnd.perpPt - test.pointLast;
+        double dot = startV.dx * endV.dx + startV.dy * endV.dy;
+        if (dot <= 0) {
+          // Obtuse , skip.
+          continue;
+        }
+        if (!_removeSpans(test, opp)) {
+          return false;
+        }
+    } while ((test = next) != null);
+    return true;
+  }
+
+  TSpan addSplitAt(TSpan span, double t) {
+    TSpan result = addOne();
+    result.splitAt(span, t);
+    result.initBounds(fCurve);
+    span.initBounds(fCurve);
+    return result;
+  }
+
+  bool removeCoincident(TSpan span, bool isBetween) {
+    if (!_unlinkSpan(span)) {
+      return false;
+    }
+    if (isBetween || SPath.between(0, span.fCoinStart.perpT, 1)) {
+      --fActiveCount;
+      span._fNext = fCoincident;
+      fCoincident = span;
+    } else {
+      _markSpanGone(span);
+    }
+    return true;
+  }
+
+  bool _deleteEmptySpans() {
+    TSpan? test;
+    TSpan? next = fHead;
+    int safetyHatch = 1000;
+    while ((test = next) != null) {
+      next = test!.next;
+      if (test.fBounded == null) {
+        if (!_removeSpan(test)) {
+          return false;
+        }
+      }
+      if (--safetyHatch < 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _removeSpans(TSpan span, TSect opp) {
+    _TSpanBounded? bounded = span.fBounded;
+    while (bounded != null) {
+      TSpan spanBounded = bounded.fBounded;
+      _TSpanBounded? next = bounded.next;
+      if (span.removeBounded(spanBounded)) {  // shuffles last into position 0
+      _removeSpan(span);
+      }
+      if (spanBounded.removeBounded(span)) {
+        opp._removeSpan(spanBounded);
+      }
+      if (span.fDeleted && opp.hasBounded(span)) {
+        return false;
+      }
+      bounded = next;
+    }
+    return true;
   }
 }
 
@@ -992,4 +1511,147 @@ class HullCheckResult {
   bool oppStart = false;
   bool ptsInCommon = false;
   int intersectionType = kHullNoIntersection;
+}
+
+class _CoincidentResult {
+  _CoincidentResult(this.success, this.coin);
+  _CoincidentResult.failure() : success = false, coin = null;
+
+  final bool success;
+  final TSpan? coin;
+}
+
+class _FindCoincidentResult {
+  _FindCoincidentResult(this.first, this.last);
+  final TSpan? first;
+  final TSpan? last;
+}
+
+class _SearchCoinResult {
+  bool success = false;
+  double t = 0;
+  double oppT = 0;
+  TSpan? oppFirst;
+}
+
+/// Creates a sorted list of span pairs by distance.
+///
+/// Usage:
+///   for each span pair , find(span1, span2)
+///   call finish(intersections) to add pairs to list of intersections.
+class ClosestSect {
+  ClosestSect() : fUsed = 0;
+
+  bool find(TSpan span1, TSpan span2) {
+    ClosestRecord record = ClosestRecord(span1, span2);
+    record.findEnd(0, 0);
+    record.findEnd(0, span2.part.pointLast);
+    record.findEnd(span1.part.pointLast, 0);
+    record.findEnd(span1.part.pointLast, span2.part.pointLast);
+    if (record.fClosest == kFltMax) {
+      return false;
+    }
+    for (int index = 0; index < fUsed; ++index) {
+      ClosestRecord test = _fClosest[index];
+      if (test.matesWith(record)) {
+        if (test.fClosest > record.fClosest) {
+          // Take closer span1,span2.
+          test.merge(record);
+        }
+        // Sort startT,endT ranges.
+        test.update(record);
+        return false;
+      }
+    }
+    // New pair doesn't mate with existing records, append a new one.
+    ++fUsed;
+    _fClosest.add(record);
+    return true;
+  }
+
+  /// Sort span pairs by distance and add to intersections.
+  void finish(Intersections intersections) {
+    List<ClosestRecord> sortedList = List.from(_fClosest);
+    sortedList.sort((ClosestRecord r1, ClosestRecord r2) {
+      double res = r1.fClosest - r2.fClosest;
+      return (res < 0) ? -1 : res == 0 ? 0 : 1;
+    });
+    for (ClosestRecord test in sortedList) {
+      test.addIntersection(intersections);
+    }
+  }
+  List<ClosestRecord> _fClosest = [];
+  int fUsed;
+}
+
+class ClosestRecord {
+  ClosestRecord(this.fC1Span, this.fC2Span);
+
+  void addIntersection(Intersections intersections) {
+    double r1t = fC1Index != 0 ? fC1Span.endT : fC1Span.startT;
+    double r2t = fC2Index != 0 ? fC2Span.endT : fC2Span.startT;
+    ui.Offset pt = fC1Span.part[fC1Index];
+    intersections.insert(r1t, r2t, pt.dx, pt.dy);
+  }
+
+  void findEnd(int c1Index, int c2Index) {
+      TCurve c1 = fC1Span.part;
+      TCurve c2 = fC2Span.part;
+      ui.Offset p1 = c1[c1Index];
+      ui.Offset p2 = c2[c2Index];
+      if (!approximatelyEqualPoints(p1.dx, p1.dy, p2.dx, p2.dy)) {
+          return;
+      }
+      double dist = distanceSquared(p1.dx, p1.dy, p2.dx, p2.dy);
+      if (fClosest < dist) {
+        return;
+      }
+      fC1StartT = fC1Span.startT;
+      fC1EndT = fC1Span.endT;
+      fC2StartT = fC2Span.startT;
+      fC2EndT = fC2Span.endT;
+      fC1Index = c1Index;
+      fC2Index = c2Index;
+      fClosest = dist;
+  }
+
+  /// Checks if either span is identical or has same but reversed T ranges.
+  bool matesWith(ClosestRecord mate) {
+    TSpan span1 = fC1Span;
+    TSpan span2 = fC2Span;
+    assert(span1 == mate.fC1Span || span1.endT <= mate.fC1Span.startT
+            || mate.fC1Span.endT <= span1.startT);
+    assert(span2 == mate.fC2Span || span2.endT <= mate.fC2Span.startT
+            || mate.fC2Span.endT <= span2.startT);
+    return span1 == mate.fC1Span || span1.endT == mate.fC1Span.startT
+      || span1.startT == mate.fC1Span.endT
+      || span2 == mate.fC2Span
+      || span2.endT == mate.fC2Span.startT
+      || span2.startT == mate.fC2Span.endT;
+  }
+
+  void merge(ClosestRecord mate) {
+    fC1Span = mate.fC1Span;
+    fC2Span = mate.fC2Span;
+    fClosest = mate.fClosest;
+    fC1Index = mate.fC1Index;
+    fC2Index = mate.fC2Index;
+  }
+
+  void update(ClosestRecord mate) {
+    fC1StartT = math.min(fC1StartT!, mate.fC1StartT!);
+    fC1EndT = math.max(fC1EndT!, mate.fC1EndT!);
+    fC2StartT = math.min(fC2StartT!, mate.fC2StartT!);
+    fC2EndT = math.max(fC2EndT!, mate.fC2EndT!);
+  }
+
+  TSpan fC1Span;
+  TSpan fC2Span;
+  double? fC1StartT;
+  double? fC1EndT;
+  double? fC2StartT;
+  double? fC2EndT;
+  double fClosest = kFltMax;
+  int fC1Index = -1;
+  int fC2Index = -1;
 }

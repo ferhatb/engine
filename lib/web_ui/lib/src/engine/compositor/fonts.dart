@@ -30,7 +30,7 @@ class SkiaFontCollection {
     fontProvider = canvasKit.TypefaceFontProvider.Make();
 
     for (var font in _registeredFonts) {
-      fontProvider!.registerFont(font!.bytes, font!.flutterFamily);
+      fontProvider!.registerFont(font!.bytes, font.flutterFamily);
     }
   }
 
@@ -136,7 +136,7 @@ class SkiaFontCollection {
       actualFamily = family;
     }
 
-    return _RegisteredFont(bytes, family, actualFamily!);
+    return _RegisteredFont(bytes, family, actualFamily);
   }
 
   String? _readActualFamilyName(Uint8List bytes) {

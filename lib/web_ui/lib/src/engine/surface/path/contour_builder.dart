@@ -126,7 +126,6 @@ class OpContour {
   int get count => _segments.length;
 
   final List<OpSegment> _segments = [];
-  OpContour? _next;
   // First half of build is marked false, second half true.
   bool? _operand;
   // True if operand (contour) needs to be xor'd for evenOdd.
@@ -292,11 +291,11 @@ class OpSegment {
   OpPtT addTAtPoint(double t, double ptX, double ptY) {
     OpSpanBase? spanBase = fHead;
     while (spanBase != null) {
-      OpPtT result = spanBase!.ptT;
+      OpPtT result = spanBase.ptT;
       /// If t already exist in span list, bump counter and return existing
       /// span. [match] ensures that point at T is approximately equal.
       if (t == result.fT || (!zeroOrOne(t) && match(result, this, t, ptX, ptY))) {
-        spanBase!.bumpSpanAdds();
+        spanBase.bumpSpanAdds();
         return result;
       }
       /// Check for possible insertion point (in t ordered list).
@@ -310,7 +309,7 @@ class OpSegment {
         span.bumpSpanAdds();
         return span.ptT;
       }
-      spanBase = spanBase!.upCast.next;
+      spanBase = spanBase.upCast.next;
     }
     assert(false);
     return OpPtT(fHead!, ui.Offset.zero, double.nan);
@@ -412,7 +411,7 @@ class OpSegment {
     OpSpan? span = fHead as OpSpan;
     do {
       markDone(span!);
-    } while ((span = span!.next?.upCastable()) != null);
+    } while ((span = span.next?.upCastable()) != null);
   }
 
   void markDone(OpSpan span) {
@@ -503,7 +502,7 @@ class OpSpanBase {
         return false;
       }
       testNext = test!.next;
-      if (test!.deleted) {
+      if (test.deleted) {
         continue;
       }
       OpSpanBase testBase = test.span;
@@ -544,7 +543,7 @@ class OpSpanBase {
               if (debugInner!.segment != segment) {
                 continue;
               }
-              if (debugInner!.deleted) {
+              if (debugInner.deleted) {
                 continue;
               }
               assert(false);
@@ -618,7 +617,6 @@ class OpSpan extends OpSpanBase {
   bool fChased = false;
   bool fDone = false;
   bool fAlreadyAdded = false;
-  bool _fDebugDeleted = false;
 
   /// Returns following span.
   OpSpanBase? get next => _fNext;
@@ -632,9 +630,6 @@ class OpSpan extends OpSpanBase {
 
   /// Release this span given that [kept] is preserved.
   void release(OpPtT kept) {
-    if (assertionsEnabled) {
-      _fDebugDeleted = true;
-    }
     assert(kept.span != this);
     assert(!isFinal());
     OpSpan prev = this.prev!;
@@ -643,7 +638,7 @@ class OpSpan extends OpSpanBase {
     next._fPrev = prev;
     fSegment.release(this);
     OpCoincidence? coincidence = globalState().coincidence;
-    coincidence?.fixUp(ptT!, kept);
+    coincidence?.fixUp(ptT, kept);
     ptT.setDeleted();
     OpPtT stopPtT = ptT;
     OpPtT testPtT = stopPtT;
@@ -746,7 +741,7 @@ class OpPtT {
     }
     /// Loop through opp.
     while (oppPrev!.next != opp) {
-      oppPrev = oppPrev!.next;
+      oppPrev = oppPrev.next;
       if (oppPrev == this) {
         return null;
       }

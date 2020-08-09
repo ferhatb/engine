@@ -58,7 +58,7 @@ class OpCoincidence {
     Float32List oPoints = oppSeg.points;
     for (int index = 0; index < count; ++index) {
       double cVal = cPoints[index];
-      double oVal = cPoints[index];
+      double oVal = oPoints[index];
       if (cVal < oVal) {
         return true;
       }
@@ -114,7 +114,7 @@ class OpCoincidence {
       if (next == null) {
         break;
       }
-      coin = next!;
+      coin = next;
     } while (true);
   }
 
@@ -152,7 +152,7 @@ class OpCoincidence {
         if (zeroOrOne(coin.coinPtTStart.fT) && zeroOrOne(coin.coinPtTEnd.fT)) {
           coin.coinPtTStart.segment.markAllDone();
         }
-        if (zeroOrOne(coin!.oppPtTStart.fT) && zeroOrOne(coin!.oppPtTEnd.fT)) {
+        if (zeroOrOne(coin.oppPtTStart.fT) && zeroOrOne(coin.oppPtTEnd.fT)) {
           coin.oppPtTStart.segment.markAllDone();
         }
         release(head!, coin);
@@ -170,14 +170,14 @@ class OpCoincidence {
     if (coin == null) {
       return;
     }
-    CoincidentSpans head = coin!;
+    CoincidentSpans head = coin;
     CoincidentSpans? prev;
     CoincidentSpans? next;
     do {
       next = coin!.next;
-      if (coin!.coinPtTStart.deleted) {
-        assert(coin!.flipped() ? coin!.oppPtTEnd.deleted :
-        coin!.oppPtTStart.deleted);
+      if (coin.coinPtTStart.deleted) {
+        assert(coin.flipped() ? coin.oppPtTEnd.deleted :
+        coin.oppPtTStart.deleted);
         if (prev != null) {
           prev._fNext = next;
         } else if (head == fHead) {
@@ -186,8 +186,8 @@ class OpCoincidence {
           fTop = next;
         }
       } else {
-        assert(coin!.flipped() ? !coin!.oppPtTEnd.deleted :
-        !coin!.oppPtTStart.deleted);
+        assert(coin.flipped() ? !coin.oppPtTEnd.deleted :
+        !coin.oppPtTStart.deleted);
         prev = coin;
       }
     } while ((coin = next) != null);
@@ -262,7 +262,7 @@ class CoincidentSpans {
     }
     do {
       coin!._correctEnds();
-    } while ((coin = coin?.next) != null);
+    } while ((coin = coin.next) != null);
   }
 
   // sets the span's point to the ptT referenced by the previous-next or
@@ -271,38 +271,38 @@ class CoincidentSpans {
     OpPtT origPtT = _fCoinPtTStart!;
     OpSpanBase origSpan = origPtT.span;
     OpSpan? prevSpan = origSpan.prev;
-    OpPtT? testPtT = prevSpan != null ? prevSpan!.next!.ptT : origSpan.upCast.next!.prev!.ptT;
+    OpPtT? testPtT = prevSpan != null ? prevSpan.next!.ptT : origSpan.upCast.next!.prev!.ptT;
     setCoinPtTStart(testPtT!);
     origPtT = _fCoinPtTEnd!;
     origSpan = origPtT.span;
     prevSpan = origSpan.prev;
-    testPtT = prevSpan != null ? prevSpan!.next!.ptT : origSpan.upCast.next!.prev!.ptT;
+    testPtT = prevSpan != null ? prevSpan.next!.ptT : origSpan.upCast.next!.prev!.ptT;
     setCoinPtTEnd(testPtT);
     origPtT = _fOppPtTStart!;
     origSpan = origPtT.span;
     prevSpan = origSpan.prev;
-    testPtT = prevSpan != null ? prevSpan!.next!.ptT : origSpan.upCast.next!.prev!.ptT;
+    testPtT = prevSpan != null ? prevSpan.next!.ptT : origSpan.upCast.next!.prev!.ptT;
     setOppPtTStart(testPtT);
     origPtT = _fOppPtTEnd!;
     origSpan = origPtT.span;
     prevSpan = origSpan.prev;
-    testPtT = prevSpan != null ? prevSpan!.next!.ptT : origSpan.upCast.next!.prev!.ptT;
+    testPtT = prevSpan != null ? prevSpan.next!.ptT : origSpan.upCast.next!.prev!.ptT;
     setOppPtTEnd(testPtT);
   }
 
   /// Expand the range by checking adjacent spans for coincidence using
   bool expand() {
     bool expanded = false;
-    OpSegment segment = coinPtTStart!.segment;
-    OpSegment oppSegment = oppPtTStart!.segment;
+    OpSegment segment = coinPtTStart.segment;
+    OpSegment oppSegment = oppPtTStart.segment;
     do {
       OpSpan start = coinPtTStart.span.upCast;
       OpSpan? prev = start.prev;
       OpPtT? oppPtT;
-      if (prev == null || null == (oppPtT = prev!.contains(oppSegment))) {
+      if (prev == null || null == (oppPtT = prev.contains(oppSegment))) {
         break;
       }
-      double midT = (prev!.t + start.t) / 2;
+      double midT = (prev.t + start.t) / 2;
       if (!segment.isClose(midT, oppSegment)) {
         break;
       }
@@ -316,7 +316,7 @@ class CoincidentSpans {
         break;
       }
       OpPtT? oppPtT;
-      if (next == null || null == (oppPtT = next?.contains(oppSegment))) {
+      if (next == null || null == (oppPtT = next.contains(oppSegment))) {
         break;
       }
       double midT = (end.t + next.t) / 2;

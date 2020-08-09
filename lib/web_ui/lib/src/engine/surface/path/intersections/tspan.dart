@@ -20,7 +20,10 @@ class TSpan {
   // True if line.
   bool fIsLinear = false;
   bool fIsLine = false;
-  bool fCollapsed = false;
+  /// Marks span to indicate that during splitting, start and end points
+  /// converged or original curve points are approximately equal and therefore
+  /// span has collapsed to point.
+  bool _fCollapsed = false;
   bool fDeleted = false;
   bool fHasPerp = false;
 
@@ -30,6 +33,11 @@ class TSpan {
 
   double get startT => _fStartT;
   double get endT => _fEndT;
+  TSpan? get next => _fNext;
+
+  /// Span has collapsed to point. (either original curve is collapsed or
+  /// during splitting of span into t halves, startT and endT converged.
+  bool get collapsed => _fCollapsed;
 
   void init(TCurve c) {
     _fStartT = 0;
@@ -56,21 +64,20 @@ class TSpan {
     fCoinStart.init();
     fCoinEnd.init();
     fBoundsMax = math.max(fBounds.width, fBounds.height);
-    fCollapsed = _fPart.collapsed;
+    _fCollapsed = _fPart.collapsed();
     fDeleted = false;
     fHasPerp = false;
     return fBounds.left <= fBounds.right && fBounds.top <= fBounds.bottom;
   }
 
-  TSpan? get next => _fNext;
 
   ui.Offset get pointFirst => _fPart[0];
   ui.Offset get pointLast => _fPart[_fPart.pointLast];
   int get pointCount => _fPart.pointCount;
 
   void markCoincident() {
-    fCoinStart!.markCoincident();
-    fCoinEnd!.markCoincident();
+    fCoinStart.markCoincident();
+    fCoinEnd.markCoincident();
   }
 
   TSpan? findOppSpan(TSpan opp) {
@@ -86,11 +93,6 @@ class TSpan {
   }
 
   /// Intersects span hulls.
-  // OPTIMIZE ? If at_most_end_pts_in_common detects that one quad is
-  // near linear,
-  // use line intersection to guess a better split than 0.5.
-  // OPTIMIZE Once at_most_end_pts_in_common detects linear, mark span
-  // so all future splits are linear.
   int hullsIntersect(TSpan opp, HullCheckResult result) {
     if (!_rectIntersects(fBounds, opp.fBounds)) {
       return 0;
@@ -122,12 +124,17 @@ class TSpan {
     }
     _HullIntersectResult iRes = _fPart.hullIntersects(opp._fPart);
     if (iRes.success) {
-      if (!iRes.isLinear) {  // check set true if linear
+      if (!iRes.isLinear) {
+        // No special case, hulls intersect.
         result.intersectionType = HullCheckResult.kHullIntersects;
         return;
       }
+      // Example: If the end point of the opposite quad is inside the hull
+      // that is nearly a line, then representing the quad as a line
+      // may cause the intersection to be missed, therefore we mark this
+      // span as linear.
       fIsLinear = true;
-      fIsLine = _fPart.controlsInside;
+      fIsLine = _fPart.controlsInside();
       result.intersectionType = result.ptsInCommon
           ? HullCheckResult.kHullIntersects
           : HullCheckResult.kHullIsLinear;
@@ -142,7 +149,7 @@ class TSpan {
     // Looks like q1 is near-linear.
     // The outside points are usually the extremes.
     int start = 0, end = _fPart.pointLast;
-    if (!_fPart.controlsInside) {
+    if (!_fPart.controlsInside()) {
       double dist = 0;  // if there's any question, compute distance to find best outsiders
       for (int outer = 0; outer < pointCount - 1; ++outer) {
         ui.Offset p0 = _fPart[outer];
@@ -234,7 +241,7 @@ class TSpan {
   bool contains(double t) {
     TSpan? work = this;
     do {
-      if (SPath.between(work!.startT, t, work!.endT)) {
+      if (SPath.between(work!.startT, t, work.endT)) {
         return true;
       }
     } while ((work = work.next) != null);
@@ -265,12 +272,12 @@ class TSpan {
     _fStartT = t;
     _fEndT = work.endT;
     if (startT == endT) {
-      fCollapsed = true;
+      _fCollapsed = true;
       return false;
     }
     work._fEndT = t;
     if (work.startT == work.endT) {
-      work.fCollapsed = true;
+      work._fCollapsed = true;
       return false;
     }
     _fPrev = work;
@@ -286,13 +293,13 @@ class TSpan {
     _TSpanBounded? bounded = work.fBounded;
     fBounded = null;
     while (bounded != null) {
-      addBounded(bounded!.fBounded!);
+      addBounded(bounded.fBounded);
       bounded = bounded.next;
     }
     bounded = fBounded;
     while (bounded != null) {
-      bounded!.fBounded!.addBounded(this);
-      bounded = bounded!.next;
+      bounded.fBounded.addBounded(this);
+      bounded = bounded.next;
     }
     return true;
   }
@@ -346,21 +353,42 @@ class TSpan {
     assert(false);
     return false;
   }
-//  double closestBoundedT(const SkDPoint& pt) const;
+
+  double closestBoundedT(ui.Offset pt) {
+    double result = -1;
+    double closest = double.maxFinite;
+    _TSpanBounded? testBounded = fBounded;
+    while (testBounded != null) {
+      TSpan test = testBounded.fBounded;
+      double startDist = distanceSquared(test.pointFirst.dx, test.pointFirst.dy, pt.dx, pt.dy);
+      if (closest > startDist) {
+        closest = startDist;
+        result = test.startT;
+      }
+      double endDist = distanceSquared(test.pointLast.dx, test.pointLast.dy, pt.dx, pt.dy);
+      if (closest > endDist) {
+        closest = endDist;
+        result = test.endT;
+      }
+      testBounded = testBounded.next;
+    }
+    assert(SPath.between(0, result, 1));
+    return result;
+  }
 
   TSpan findOppT(double t) {
-    TSpan? result = _oppT(t);
+    TSpan? result = oppT(t);
     assert(result != null);
     return result!;
   }
   bool hasOppT(double t) {
-    return _oppT(t) != null;
+    return oppT(t) != null;
   }
 
-  TSpan? _oppT(double t) {
+  TSpan? oppT(double t) {
     _TSpanBounded? bounded = fBounded;
     while (bounded != null) {
-      TSpan test = bounded.fBounded!;
+      TSpan test = bounded.fBounded;
       if (SPath.between(test.startT, t, test.endT)) {
         return test;
       }
