@@ -865,7 +865,7 @@ class OpEdgeBuilder {
               split.fPts![3] = splits[next].fPts![3];
             }
             if (prior < index || next > index) {
-              split.fVerb = ReduceOrder._cubic(points, reducedPoints);
+              split.fVerb = ReduceOrder.cubic(points, reducedPoints);
             }
             Float32List curvePoints = split.fVerb! == SPathVerb.kCubic ?
                 split.fPts! : reducedPoints;

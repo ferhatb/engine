@@ -57,9 +57,12 @@ void main() {
 
     test('Cubic degenerates', () {
       for (int index = 0; index < pointDegeneratesCount; ++index) {
-        Float32List points = offsetListToPoints(pointDegenerates[index]);
+        Cubic cubic = offsetListToCubic(pointDegenerates[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        if (index == 8) {
+          print('stop here');
+        }
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order, ReduceOrderResult.kPoint, reason:
           'Expected pointDegenerates[$index] '
               'order=${ReduceOrderResult.kPoint} got $order');
@@ -68,9 +71,9 @@ void main() {
 
     test('Cubic not point degenerates', () {
       for (int index = 0; index < notPointDegeneratesCount; ++index) {
-        Float32List points = offsetListToPoints(notPointDegenerates[index]);
+        Cubic cubic = offsetListToCubic(notPointDegenerates[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order != ReduceOrderResult.kPoint, true, reason:
           'Expected notPointDegenerates[$index] '
               'order!=${ReduceOrderResult.kPoint} got $order');
@@ -79,9 +82,9 @@ void main() {
 
     test('Cubic should reduce to lines', () {
       for (int index = 0; index < cubicLinesCount; ++index) {
-        Float32List points = offsetListToPoints(cubicLines[index]);
+        Cubic cubic = offsetListToCubic(cubicLines[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order, ReduceOrderResult.kLine, reason:
         'Expected cubicLines[$index] '
             'order==${ReduceOrderResult.kLine} got $order');
@@ -90,9 +93,9 @@ void main() {
 
     test('Cubic should not reduce to line', () {
       for (int index = 0; index < notLinesCount; ++index) {
-        Float32List points = offsetListToPoints(notLines[index]);
+        Cubic cubic = offsetListToCubic(notLines[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order != ReduceOrderResult.kLine, true, reason:
         'Expected notLines[$index] '
             'order!=${ReduceOrderResult.kLine} got $order');
@@ -101,9 +104,9 @@ void main() {
 
     test('Cubic should support lines modulated by epsilon', () {
       for (int index = 0; index < modEpsilonLinesCount; ++index) {
-        Float32List points = offsetListToPoints(modEpsilonLines[index]);
+        Cubic cubic = offsetListToCubic(modEpsilonLines[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order != ReduceOrderResult.kLine, true, reason:
           'Expected modEpsilonLines[$index] '
               'order!=${ReduceOrderResult.kLine} got $order');
@@ -112,9 +115,9 @@ void main() {
 
     test('Cubic should support lines modulated by less than epsilon', () {
       for (int index = 0; index < lessEpsilonLinesCount; ++index) {
-        Float32List points = offsetListToPoints(lessEpsilonLines[index]);
+        Cubic cubic = offsetListToCubic(lessEpsilonLines[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order, ReduceOrderResult.kLine, reason:
         'Expected lessEpsilonLines[$index] '
             'order==${ReduceOrderResult.kLine} got $order');
@@ -123,9 +126,9 @@ void main() {
 
     test('Cubic should support lines modulated by negative epsilon', () {
       for (int index = 0; index < negEpsilonLinesCount; ++index) {
-        Float32List points = offsetListToPoints(negEpsilonLines[index]);
+        Cubic cubic = offsetListToCubic(negEpsilonLines[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order, ReduceOrderResult.kLine, reason:
         'Expected negEpsilonLines[$index] '
             'order==${ReduceOrderResult.kLine} got $order');
@@ -134,10 +137,9 @@ void main() {
 
     test('Cubic from quads should reduce to point', () {
       for (int index = 0; index < quadraticPointsCount; ++index) {
-        Float32List points = quadPointsToCubic(offsetListToPoints(
-            quadraticPoints[index]));
+        Cubic cubic = quadPointsToCubic(quadraticPoints[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order, ReduceOrderResult.kPoint, reason:
           'Expected quadraticPoints[$index] '
               'order==${ReduceOrderResult.kPoint} got $order');
@@ -146,10 +148,9 @@ void main() {
 
     test('Cubic from quads should reduce to lines', () {
       for (int index = 0; index < quadraticLinesCount; ++index) {
-        Float32List points = quadPointsToCubic(offsetListToPoints(
-            quadraticLines[index]));
+        Cubic cubic = quadPointsToCubic(quadraticLines[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order, ReduceOrderResult.kLine, reason:
         'Expected quadraticLines[$index] '
             'order==${ReduceOrderResult.kLine} got $order');
@@ -158,10 +159,9 @@ void main() {
 
     test('Cubic from quads modulated by epsilon should reduce to quad', () {
       for (int index = 0; index < quadraticModEpsilonLinesCount; ++index) {
-        Float32List points = quadPointsToCubic(offsetListToPoints(
-            quadraticModEpsilonLines[index]));
+        Cubic cubic = quadPointsToCubic(quadraticModEpsilonLines[index]);
         Float32List reduction = Float32List(8);
-        int order = ReduceOrder.cubic(points, reduction);
+        int order = ReduceOrder.reduceCubic(cubic, reduction);
         expect(order, ReduceOrderResult.kQuad, reason:
         'Expected quadraticModEpsilonLines[$index] '
             'order!=${ReduceOrderResult.kQuad} got $order');
@@ -241,20 +241,11 @@ List<List<Offset>> quadraticModEpsilonLines = <List<Offset>>[
 
 int quadraticModEpsilonLinesCount = quadraticModEpsilonLines.length;
 
-Float32List quadPointsToCubic(Float32List quadPoints) {
-  Float32List cubic = Float32List(8);
-  cubic[0] = quadPoints[0];
-  cubic[1] = quadPoints[1];
-
-  cubic[4] = quadPoints[2];
-  cubic[5] = quadPoints[3];
-
-  cubic[6] = quadPoints[4];
-  cubic[7] = quadPoints[5];
-
-  cubic[2] = (cubic[0] + cubic[4] * 2) / 3;
-  cubic[3] = (cubic[1] + cubic[5] * 2) / 3;
-  cubic[4] = (cubic[6] + cubic[4] * 2) / 3;
-  cubic[5] = (cubic[7] + cubic[5] * 2) / 3;
-  return cubic;
+Cubic quadPointsToCubic(List<Offset> quadPoints) {
+  double cp1x = (quadPoints[0].dx + quadPoints[1].dx * 2) / 3;
+  double cp1y = (quadPoints[0].dy + quadPoints[1].dy * 2) / 3;
+  double cp2x = (quadPoints[2].dx + quadPoints[1].dx * 2) / 3;
+  double cp2y = (quadPoints[2].dy + quadPoints[1].dy * 2) / 3;
+  return Cubic(quadPoints[0].dx, quadPoints[0].dy, cp1x, cp1y, cp2x, cp2y,
+      quadPoints[2].dx, quadPoints[2].dy);
 }
