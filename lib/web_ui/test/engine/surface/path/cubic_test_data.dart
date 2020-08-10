@@ -279,8 +279,3 @@ Float32List offsetListToPoints(List<Offset> offsets) {
   }
   return points;
 }
-
-/// Helper function to convert list of offsets to Cubic.
-Cubic offsetListToCubic(List<Offset> offsets) =>
-  Cubic(offsets[0].dx, offsets[0].dy, offsets[1].dx, offsets[1].dy,
-    offsets[2].dx, offsets[2].dy, offsets[3].dx, offsets[3].dy);

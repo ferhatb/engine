@@ -183,7 +183,7 @@ class ReduceOrder {
   /// note that three points in a line doesn't simplify a cubic
   /// look for approximation with single quadratic
   /// save approximation with multiple quadratics in [fQuads] for later.
-  static int reduceCubic(Cubic cubic, Float32List target,
+  static int _cubic(Float32List points, Float32List target,
       {bool allowQuadratics = true}) {
     int index;
     int minXIndex = 0;
@@ -193,25 +193,25 @@ class ReduceOrder {
     // Bit patterns that indicate minimumY is almost equal to point at index.
     int minXSet = 0;
     int minYSet = 0;
-    for (int index = 1; index < 4; ++index) {
-      if (cubic.xAt(index) < cubic.xAt(minXIndex)) {
+    for (int index = 2; index < 8; index += 2) {
+      if (points[index] < points[minXIndex]) {
         minXIndex = index;
       }
-      if (cubic.yAt(index) < cubic.yAt(minYIndex)) {
+      if (points[index + 1] < points[minYIndex + 1]) {
         minYIndex = index;
       }
-      if (cubic.xAt(index) > cubic.xAt(maxXIndex)) {
+      if (points[index] > points[maxXIndex]) {
         maxXIndex = index;
       }
-      if (cubic.yAt(index) > cubic.yAt(maxYIndex)) {
+      if (points[index + 1] > points[maxYIndex + 1]) {
         maxYIndex = index;
       }
     }
-    final double minX = cubic.xAt(minXIndex);
-    final double minY = cubic.yAt(minYIndex);
+    final double minX = points[minXIndex];
+    final double minY = points[minYIndex + 1];
     for (index = 0; index < 4; ++index) {
-        double cx = cubic.xAt(index);
-        double cy = cubic.yAt(index);
+        double cx = points[index * 2];
+        double cy = points[index * 2 + 1];
         double denom = math.max(cx.abs(), math.max(cy.abs(),
           math.max(minX.abs(), minY.abs())));
         if (denom == 0) {
@@ -227,7 +227,6 @@ class ReduceOrder {
             minYSet |= 1 << index;
         }
     }
-    Float32List points = cubic.toPoints();
     if (minXSet == 0xF) {  // test for vertical line
         if (minYSet == 0xF) {  // return 1 if all four are coincident
             return _coincidentLine(points, target);
@@ -264,7 +263,7 @@ class ReduceOrder {
       }
       return ReduceOrderResult.kPoint;
     }
-    return reduceCubic(Cubic.fromPoints(points), target, allowQuadratics: true);
+    return _cubic(points, target, allowQuadratics: true);
   }
 }
 
