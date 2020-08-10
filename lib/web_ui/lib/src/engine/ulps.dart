@@ -206,8 +206,6 @@ bool approximatelyEqualD(double ax, double ay, double bx, double by) {
   if (!roughlyEqualUlps(ax, bx) || !roughlyEqualUlps(ay, by)) {
     return false;
   }
-  final double dx = (ax - bx);
-  final double dy = (ay - by);
   double dist = math.sqrt(distanceSquared(ax, ay, bx, by));
   double tiniest = math.min(math.min(math.min(ax, bx), ay), by);
   double largest = math.max(math.max(math.max(ax, bx), ay), by);
@@ -223,8 +221,6 @@ bool approximatelyEqual(double ax, double ay, double bx, double by) {
   if (!roughlyEqualUlps(ax, bx) || !roughlyEqualUlps(ay, by)) {
     return false;
   }
-  final double dx = (ax - bx);
-  final double dy = (ay - by);
   double dist = math.sqrt(distanceSquared(ax, ay, bx, by));
   double tiniest = math.min(math.min(math.min(ax, bx), ay), by);
   double largest = math.max(math.max(math.max(ax, bx), ay), by);
@@ -397,8 +393,7 @@ double cubeRoot(double x) {
   }
   double result = _halleyCbrt3d(x.abs());
   // Preserve sign.
-  if (x < 0) result = -result;
-  return result;
+  return x < 0 ? -result : result;
 }
 
 // Cube root approximation using Kahan's cbrt.

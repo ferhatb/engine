@@ -423,8 +423,6 @@ class _PathContourMeasure {
       distance = _computeCubicSegments(abcdX, abcdY, bcdX, bcdY, cdX, cdY, x3,
           y3, distance, tHalf, tMax, segments);
     } else {
-      final double dx = x0 - x3;
-      final double dy = y0 - y3;
       final double startToEndDistance = math.sqrt(distanceSquared(x0, y0, x3, y3));
       final double prevDistance = distance;
       distance += startToEndDistance;
