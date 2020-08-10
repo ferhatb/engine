@@ -5,27 +5,27 @@
 // @dart = 2.10
 part of engine;
 
-// Parameterized line of the form :  ax + by + c = 0
-//
-// Line is normalized when length is 1 (a^2 + b^2 == 1).
-//
-// The distance to the line for (x, y) is d(x,y) = ax + by + c
-// To get true distance either call [normalize] or divide distance by
-// sqrt([normalSquared].
-//
-// This class contains several helper methods to read quadratic and cubic
-// curve points and converts them to parametric form.
-//
-// Sources:
-// Thomas W. Sederberg, Tomoyuki Nishita:  Curve intersection using Bezier
-// clipping. Computer Aided Design 1990;22(9):538–49.
-// https://github.com/google/skia/blob/master/src/pathops/SkLineParameters.h
+/// Parameterized line of the form :  ax + by + c = 0
+///
+/// Line is normalized when length is 1 (a^2 + b^2 == 1).
+///
+/// The distance to the line for (x, y) is d(x,y) = ax + by + c
+/// To get true distance either call [normalize] or divide distance by
+/// sqrt([normalSquared].
+///
+/// This class contains several helper methods to read quadratic and cubic
+/// curve points and converts them to parametric form.
+///
+/// Sources:
+/// Thomas W. Sederberg, Tomoyuki Nishita:  Curve intersection using Bezier
+/// clipping. Computer Aided Design 1990;22(9):538–49.
+/// https://github.com/google/skia/blob/master/src/pathops/SkLineParameters.h
 class LineParameters {
   double _a = 0;
   double _b = 0;
   double _c = 0;
 
-  // Create line from cubic curve end points.
+  /// Create line from cubic curve end points.
   bool cubicEndPoints(Float32List points) {
     int endIndex = 1;
     _readPoints(points, 0, endIndex);
@@ -45,12 +45,11 @@ class LineParameters {
         return false;
       }
     }
-    // FIXME: after switching to round sort, remove bumping _a
     if (dx < 0) {
       // Only worry about y bias when breaking cw/ccw tie.
       return true;
     }
-    // if Cubic tangent is on x axis, look at next control point to break tie
+    // If Cubic tangent is on x axis, look at next control point to break tie
     // control point may be approximate, so it must move significantly to
     // account for error.
     if (!almostEqualUlps(points[1], points[(++endIndex) * 2 + 1])) {
@@ -104,7 +103,7 @@ class LineParameters {
     return pointDistance(points[4], points[5]);
   }
 
-  /// Create form line end points.
+  /// Create from line end points.
   void lineEndPoints(Float32List points) {
     _a = points[1] - points[3];
     _b = points[2] - points[0];
@@ -125,7 +124,6 @@ class LineParameters {
       // Only worry about y bias when breaking cw/ccw tie.
       return true;
     }
-    // FIXME: after switching to round sort, remove this
     if (points[1] > points[5]) {
       _a = kDblEpsilon;
     }
@@ -138,6 +136,7 @@ class LineParameters {
     return pointDistance(points[4], points[5]);
   }
 
+  /// Returns square of normal vector length.
   double get normalSquared {
     return _a * _a + _b * _b;
   }
