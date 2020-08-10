@@ -391,7 +391,7 @@ class PathRef {
     } else {
       _conicWeights!.setAll(0, ref._conicWeights!);
     }
-    assert(verbCount == 0 || _fVerbs[0] != 0);
+    assert(verbCount == 0 || _fVerbs[0] >= SPathVerb.kMove);
     fBoundsIsDirty = ref.fBoundsIsDirty;
     if (!fBoundsIsDirty) {
       fBounds = ref.fBounds;

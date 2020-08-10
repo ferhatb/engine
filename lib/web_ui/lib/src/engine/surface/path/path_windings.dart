@@ -375,6 +375,9 @@ class PathIterator {
   int _verbIndex = 0;
   int _pointIndex = 0;
 
+  /// Maximum buffer size required for points in [next] calls.
+  static const int kMaxBufferSize = 8;
+
   /// Returns true if first contour on path is closed.
   bool isClosedContour() {
     if (_verbCount == 0 || _verbIndex == _verbCount) {
@@ -436,7 +439,16 @@ class PathIterator {
         pathRef.points[_pointIndex - 2], pathRef.points[_pointIndex - 1]);
   }
 
-  int peek() => pathRef._fVerbs[_verbIndex];
+  int peek() {
+    if (_verbIndex < pathRef.countVerbs()) {
+      return pathRef._fVerbs[_verbIndex];
+    }
+    if (_needClose && _segmentState == SPathSegmentState.kAfterPrimitive) {
+       return (_lastPointX != _moveToX || _lastPointY != _moveToY) ?
+          SPath.kLineVerb : SPath.kCloseVerb;
+    }
+    return SPath.kDoneVerb;
+  }
 
   // Returns next verb and reads associated points into [outPts].
   int next(Float32List outPts) {
