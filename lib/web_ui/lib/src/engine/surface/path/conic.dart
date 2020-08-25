@@ -27,6 +27,8 @@ class Conic {
         points[5], fW);
   }
 
+  Conic clone() => Conic(p0x, p0y, p1x, p1y, p2x, p2y, fW);
+
   Float32List toPoints() {
     final Float32List points = Float32List(6);
     points[0] = p0x;
@@ -36,6 +38,17 @@ class Conic {
     points[4] = p2x;
     points[5] = p2y;
     return points;
+  }
+
+  void offset(ui.Offset offset) {
+    final double dx = offset.dx;
+    final double dy = offset.dy;
+    p0x += dx;
+    p1x += dx;
+    p2x += dx;
+    p0y += dy;
+    p1y += dy;
+    p2y += dy;
   }
 
   /// Checks if conic points collapse to a single point.
@@ -80,6 +93,23 @@ class Conic {
   /// Conic point x at curve point [index].
   double xAt(int index) => index == 0 ? p0x : (index == 1 ? p1x : p2x);
   double yAt(int index) => index == 0 ? p0y : (index == 1 ? p1y : p2y);
+
+  void setPoint(int pointIndex, double x, double y) {
+    switch(pointIndex) {
+      case 0:
+        p0x = x;
+        p0y = y;
+        break;
+      case 1:
+        p1x = x;
+        p1y = y;
+        break;
+      case 2:
+        p2x = x;
+        p2y = y;
+        break;
+    }
+  }
 
   /// Point on curve at [t].
   ui.Offset ptAtT(double t) {

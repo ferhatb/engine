@@ -267,6 +267,10 @@ bool roughlyEqual(double x, double y) {
   return (x - y).abs() < kRoughEpsilon;
 }
 
+/// Given a magnitude (largest component) returns true if [x] is roughly 0.
+bool roughlyZeroWhenComparedTo(double x, double magnitude) =>
+  x == 0 || x.abs() < (magnitude * kRoughEpsilon).abs();
+
 bool roughlyEqualUlps(double a, double b) {
   const int kUlpsEpsilon = 256;
   const int kDUlpsEpsilon = 1024;
@@ -471,6 +475,46 @@ double distanceSquared(double p0x, double p0y, double p1x, double p1y) {
   final double dx = p0x - p1x;
   final double dy = p0y - p1y;
   return dx * dx + dy * dy;
+}
+
+/// Returns true if a normal vector defined by a,b is too small in precision.
+bool almostEqualUlpsNoNormalCheck(double a, double b) {
+  const int kUlpsEpsilon = 16;
+  return _equalUlpsNoNormalCheck(a, b, kUlpsEpsilon, kUlpsEpsilon);
+}
+
+bool _equalUlpsNoNormalCheck(double a, double b, int epsilon, int depsilon) {
+  int aBits = floatAs2sCompliment(a);
+  int bBits = floatAs2sCompliment(b);
+  // Find the difference in ULPs.
+  return aBits < bBits + epsilon && bBits < aBits + epsilon;
+}
+
+bool approximatelyNegativeOrderable(double x) {
+  return x < kFltEpsilonOrderableErr;
+}
+
+bool approximatelyBetweenOrderable(double a, double b, double c) {
+  return a <= c
+      ? approximatelyNegativeOrderable(a - b) && approximatelyNegativeOrderable(b - c)
+      : approximatelyNegativeOrderable(b - a) && approximatelyNegativeOrderable(c - b);
+}
+
+bool approximatelyEqualOrderable(double x, double y) {
+  return approximatelyZeroOrderable(x - y);
+}
+
+bool approximatelyZeroOrderable(double x) {
+  return x.abs() < kFltEpsilonOrderableErr;
+}
+
+bool approximatelyNegative(double x) {
+  return x < kFltEpsilon;
+}
+
+bool approximatelyBetween(double a, double b, double c) {
+  return a <= c ? approximatelyNegative(a - b) && approximatelyNegative(b - c)
+      : approximatelyNegative(b - a) && approximatelyNegative(c - b);
 }
 
 const double kFltEpsilon = 1.19209290E-07; // == 1 / (2 ^ 23)

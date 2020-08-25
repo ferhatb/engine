@@ -7,12 +7,17 @@ part of engine;
 
 /// A Line represented by 2 endpoints as doubles.
 class DLine {
-  final double x0, y0, x1, y1;
+  double x0, y0, x1, y1;
 
   DLine(this.x0, this.y0, this.x1, this.y1);
 
+  DLine.offsets(ui.Offset start, ui.Offset end) :
+        x0 = start.dx, y0 = start.dy, x1 = end.dx, y1 = end.dy;
+
   factory DLine.fromPoints(Float32List points) =>
       DLine(points[0], points[1], points[2], points[3]);
+
+  DLine clone() => DLine(x0, y0, x1, y1);
 
   static const int kPointCount = 2;
   static const int kPointLast = kPointCount - 1;
@@ -27,6 +32,15 @@ class DLine {
       return 1;
     }
     return -1;
+  }
+
+  void offset(ui.Offset offset) {
+    final double dx = offset.dx;
+    final double dy = offset.dy;
+    x0 += dx;
+    y0 += dy;
+    x1 += dx;
+    y1 += dy;
   }
 
   // Given an end point return t for a horizontal line.
@@ -150,4 +164,14 @@ class DLine {
   ui.Offset ptAtT(double t) => ui.Offset(ptAtTx(t), ptAtTy(t));
   double xAt(int index) => index == 0 ? x0 : x1;
   double yAt(int index) => index == 0 ? y0 : y1;
+
+  void setPoint(int pointIndex, double x, double y) {
+    if (pointIndex == 0) {
+      x0 = x;
+      y0 = y;
+    } else {
+      x1 = x;
+      y1 = y;
+    }
+  }
 }

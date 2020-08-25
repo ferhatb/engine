@@ -110,6 +110,13 @@ class LineParameters {
     _c = points[0] * points[3] - points[2] * points[1];
   }
 
+  /// Create from line end points.
+  void lineEndOffsets(ui.Offset p0, ui.Offset p1) {
+    _a = p0.dy - p1.dy;
+    _b = p1.dx - p0.dx;
+    _c = p0.dx * p1.dy - p1.dx * p0.dy;
+  }
+
   /// Create from quadratic curve end points.
   bool quadEndPoints(Float32List points) {
     _readPoints(points, 0, 1);

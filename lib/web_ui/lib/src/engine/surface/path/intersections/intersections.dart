@@ -245,12 +245,12 @@ bool addIntersectTs(OpContour test, OpContour next, OpCoincidence coincidence) {
         double iPtY = ts.ptY[pt];
         bool iPtIsIntegral = iPtX == iPtX.floor() && iPtY == iPtY.floor();
         OpPtT testTAt = iPtIsIntegral ? wt.segment!.addTAtPoint(
-            swap == 0 ? ts.fT0[pt] : ts.fT1[pt], iPtX, iPtY)
-              : wt.segment!.addT(swap == 0 ? ts.fT0[pt] : ts.fT1[pt]);
+            swap == 0 ? ts.fT0[pt] : ts.fT1[pt], iPtX, iPtY)!
+              : wt.segment!.addT(swap == 0 ? ts.fT0[pt] : ts.fT1[pt])!;
         wn.segment!.debugValidate();
         OpPtT nextTAt = iPtIsIntegral ? wn.segment!.addTAtPoint(
-            swap == 1 ? ts.fT0[pt] : ts.fT1[pt], iPtX, iPtY)
-              : wn.segment!.addT(swap == 1 ? ts.fT0[pt] : ts.fT1[pt]);
+            swap == 1 ? ts.fT0[pt] : ts.fT1[pt], iPtX, iPtY)!
+              : wn.segment!.addT(swap == 1 ? ts.fT0[pt] : ts.fT1[pt])!;
         /// Skip adding/merging nextTAt in case an existing testTAt was found
         /// and it is already in testTAt loop.
         if (!testTAt.contains(nextTAt)) {
@@ -1014,6 +1014,45 @@ class Intersections {
     }
   }
 
+  /// Returns closest intersection point to [testPtX], [testPtY]
+  /// within a t range.
+  _ClosestIntersection closestTo(double rangeStart, double rangeEnd,
+      double testPtX, double testPtY) {
+    int closest = -1;
+    double closestDistSq = kScalarMax;
+    for (int index = 0; index < fUsed; ++index) {
+      if (!SPath.between(rangeStart, fT0[index], rangeEnd)) {
+        continue;
+      }
+      double dist = distanceSquared(testPtX, testPtY, ptX[index],
+          ptY[index]);
+      if (dist < closestDistSq) {
+        closestDistSq = dist;
+        closest = index;
+      }
+    }
+    return _ClosestIntersection(closest, closestDistSq);
+  }
+
+  int mostOutside(double rangeStart, double rangeEnd, ui.Offset origin) {
+    int result = -1;
+    for (int index = 0; index < fUsed; ++index) {
+      if (!SPath.between(rangeStart, fT0[index], rangeEnd)) {
+        continue;
+      }
+      if (result < 0) {
+        result = index;
+        continue;
+      }
+      ui.Offset best = ui.Offset(ptX[result], ptY[result]) - origin;
+      ui.Offset test = ui.Offset(ptX[index], ptY[index]) - origin;
+      if (crossCheck(test, best) < 0) {
+        result = index;
+      }
+    }
+    return result;
+  }
+
   /// Flip t values of second curve (to 1 - t).
   void flip() {
     for (int index = 0; index < fUsed; ++index) {
@@ -1141,6 +1180,13 @@ double _horizontalIntercept(DLine line, double y) {
   return pinT((y - line.y0) / (line.y1 - line.y0));
 }
 
+/// T value where horizontal line intercepts [x].
+double _verticalIntercept(DLine line, double x) {
+  assert(line.x1 != line.x0,
+    'Should only be called for horizontal lines');
+  return pinT((x - line.x0) / (line.x1 - line.x0));
+}
+
 class CurveDistance {
   /// Computes nearest point distance of point to curve.
   ///
@@ -1214,4 +1260,14 @@ void intersectRay(Float32List points, int verb, double weight, DLine line,
       assert(false);
       break;
   }
+}
+
+class _ClosestIntersection {
+  _ClosestIntersection(this.intersectionPointIndex, this.distanceSquared);
+  /// Index to closest intersection. -1 if not found.
+  final int intersectionPointIndex;
+  /// Distance from test point to intersection.
+  final double distanceSquared;
+  /// Whether a valid intersection within range was found.
+  bool get foundClosest => intersectionPointIndex != -1;
 }

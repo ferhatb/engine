@@ -26,6 +26,10 @@ class PathOp {
 ///   opBuilder.add(path2, PathOp.kUnion);
 ///   success = opBuilder.resolve(targetPath);
 class OpBuilder {
+  OpGlobalState globalState;
+
+  OpBuilder(this.globalState);
+
   final List<SurfacePath> _pathRefs = [];
   final List<int> _ops = [];
 
@@ -102,7 +106,7 @@ class OpBuilder {
         }
         if (!_pathRefs[index].pathRef.isEmpty) {
             // convert the even odd result back to winding form before accumulating it
-            if (!_fixWinding(_pathRefs[index])) {
+            if (!_fixWinding(_pathRefs[index], globalState)) {
                 return false;
             }
             sum.addPath(_pathRefs[index], ui.Offset.zero);
@@ -113,9 +117,88 @@ class OpBuilder {
     return success;
   }
 
-  static bool _fixWinding(SurfacePath path) {
-    // TODO PATH
-    throw UnimplementedError();
+  /// True if path has a single contour.
+  static bool _oneContour(SurfacePath path) {
+    PathRef pathRef = path.pathRef;
+    int verbCount = pathRef.countVerbs();
+    for (int index = 1; index < verbCount; ++index) {
+      if (pathRef.atVerb(index) == SPathVerb.kMove) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static bool _fixWinding(SurfacePath path, OpGlobalState globalState) {
+    int fillType = path._fillType;
+    if (fillType == SPathFillType.kInverseEvenOdd) {
+        fillType = SPathFillType.kInverseWinding;
+    } else if (fillType == SPathFillType.kEvenOdd) {
+        fillType = SPathFillType.kWinding;
+    }
+    int dir = SPathDirection.kUnknown;
+    if (_oneContour(path)) {
+      CheapComputeFirstDirection result = CheapComputeFirstDirection(path);
+      dir = result.direction;
+      if (result.success) {
+        if (dir != SPathDirection.kCCW) {
+          _reversePath(path);
+        }
+        path._fillType = fillType;
+        return true;
+      }
+    }
+    OpEdgeBuilder builder = OpEdgeBuilder(path, OpGlobalState());
+    if (builder.unparseable || !builder.finish()) {
+      return false;
+    }
+    OpContour contourHead = builder.contourList.first;
+    if (contourHead.count == 0) {
+      return true;
+    }
+    if (builder.contourList.length == 1) {
+      return false;
+    }
+    // Join all [OpSpan]'s for this segment into a single linked list by
+    // attaching to tail of preceding segments.
+    builder.joinAllSegments();
+    for (OpContour contour in builder.contourList) {
+      contour.resetReverse();
+    }
+    bool writePath = false;
+    OpSpan? topSpan;
+    globalState.phase = OpPhase.kFixWinding;
+//    while ((topSpan = FindSortableTop(&contourHead))) {
+//      SkOpSegment* topSegment = topSpan->segment();
+//      SkOpContour* topContour = topSegment->contour();
+//      SkASSERT(topContour->isCcw() >= 0);
+//      if ((globalState.nested() & 1) != SkToBool(topContour->isCcw())) {
+//          topContour->setReverse();
+//          writePath = true;
+//      }
+//      topContour->markAllDone();
+//      globalState.clearNested();
+//    }
+//    if (!writePath) {
+//      path->setFillType(fillType);
+//      return true;
+//    }
+//    SkPath empty;
+//    SkPathWriter woundPath(empty);
+//    SkOpContour* test = &contourHead;
+//    do {
+//      if (!test.count) {
+//        continue;
+//      }
+//      if (test->reversed()) {
+//        test->toReversePath(&woundPath);
+//      } else {
+//        test->toPath(&woundPath);
+//      }
+//    } while ((test = test->next()));
+//    *path = *woundPath.nativePath();
+    path._fillType = fillType;
+    return true;
   }
 
   static void _reversePath(SurfacePath path) {
@@ -323,20 +406,169 @@ bool _simplify(SurfacePath path, SurfacePath target) {
       addIntersectTs(contourList[i], contourList[j], coincidence);
     }
   }
-//  bool success = HandleCoincidence(contourList, &coincidence);
-//  if (!success) {
-//      return false;
-//  }
-//  // construct closed contours
-//  target->reset();
-//  target->setFillType(fillType);
-//  SkPathWriter wrapper(*result);
-//  if (builder.xorMask() == kWinding_PathOpsMask ? !bridgeWinding(contourList, &wrapper)
-//          : !bridgeXor(contourList, &wrapper)) {
-//      return false;
-//  }
-//  wrapper.assemble();  // if some edges could not be resolved, assemble remaining
+
+  // After computing raw intersections, post process all segments to:
+  // - find small collections of points that can be collapsed to a single point
+  // - find missing intersections to resolve differences caused by different
+  //   algorithms
+  //
+  // Consider segments containing tiny or small intervals. Consider coincident
+  // segments.
+  // because coincidence finds intersections through distance measurement that
+  // non-coincident intersection tests cannot.
+
+  globalState.phase = OpPhase.kWalking;
+  bool success = handleCoincidence(contourList, coincidence, globalState);
+  if (!success) {
+    return false;
+  }
+  // Construct closed contours.
+  target.reset();
+  target._fillType = fillType;
+  SPathWriter writer = SPathWriter(target);
+  if (builder.xorMask == SPathOpsMask.kWinding ?
+      !bridgeWinding(contourList, writer)
+      : !bridgeXor(contourList, writer)) {
+    return false;
+  }
+  // If some edges could not be resolved, assemble remaining.
+  writer.assemble();
   return true;
+}
+
+bool bridgeWinding(List<OpContour> contourList, SPathWriter writer) {
+  bool unsortable = false;
+  do {
+    OpSpan? span = findSortableTop(contourList);
+    if (span == null) {
+      break;
+    }
+    OpSegment current = span.segment;
+    OpSpanBase? start = span.next;
+    OpSpanBase end = span;
+    List<OpSpanBase> chase = [];
+    do {
+      if (current.activeWinding(start, end)) {
+        do {
+          if (!unsortable && current.done()) {
+            break;
+          }
+          assert(unsortable || !current.done());
+          OpSpanBase nextStart = start;
+          OpSpanBase nextEnd = end;
+          OpSegment? next = current.findNextWinding(&chase, &nextStart, &nextEnd,
+                  &unsortable);
+          if (next == null) {
+            break;
+          }
+          if (!current.addCurveTo(start, end, writer)) {
+            return false;
+          }
+          current = next;
+          start = nextStart;
+          end = nextEnd;
+        } while (!writer.isClosed && (!unsortable || !start.starter(end).done()));
+        if (current.activeWinding(start, end) && !writer.isClosed) {
+          OpSpan spanStart = start.starter(end);
+          if (!spanStart.done()) {
+            if (!current.addCurveTo(start, end, writer)) {
+                return false;
+            }
+            current->markDone(spanStart);
+          }
+        }
+        writer.finishContour();
+      } else {
+        OpSpanBase* last;
+         if (!current->markAndChaseDone(start, end, &last)) {
+            return false;
+        }
+        if (last && !last->chased()) {
+            last->setChased(true);
+            SkASSERT(!SkPathOpsDebug::ChaseContains(chase, last));
+            *chase.append() = last;
+#if DEBUG_WINDING
+            SkDebugf("%s chase.append id=%d", __FUNCTION__, last->segment()->debugID());
+            if (!last->final()) {
+                 SkDebugf(" windSum=%d", last->upCast()->windSum());
+            }
+            SkDebugf("\n");
+#endif
+        }
+      }
+      current = findChase(&chase, &start, &end);
+      if (current == null) {
+        break;
+      }
+    } while (true);
+  } while (true);
+  return true;
+}
+
+// Returns true if all edges were processed
+bool bridgeXor(List<OpContour> contourList, SPathWriter writer) {
+  bool unsortable = false;
+  int safetyNet = 1000000;
+  do {
+      SkOpSpan* span = FindUndone(contourList);
+      if (!span) {
+          break;
+      }
+      SkOpSegment* current = span->segment();
+      SkOpSpanBase* start = span->next();
+      SkOpSpanBase* end = span;
+      do {
+          if (--safetyNet < 0) {
+              return false;
+          }
+          if (!unsortable && current->done()) {
+              break;
+          }
+          SkASSERT(unsortable || !current->done());
+          SkOpSpanBase* nextStart = start;
+          SkOpSpanBase* nextEnd = end;
+          SkOpSegment* next = current->findNextXor(&nextStart, &nextEnd,
+                  &unsortable);
+          if (!next) {
+              break;
+          }
+      #if DEBUG_FLOW
+          SkDebugf("%s current id=%d from=(%1.9g,%1.9g) to=(%1.9g,%1.9g)\n", __FUNCTION__,
+                  current->debugID(), start->pt().fX, start->pt().fY,
+                  end->pt().fX, end->pt().fY);
+      #endif
+          if (!current->addCurveTo(start, end, writer)) {
+              return false;
+          }
+          current = next;
+          start = nextStart;
+          end = nextEnd;
+      } while (!writer->isClosed() && (!unsortable || !start->starter(end)->done()));
+      if (!writer->isClosed()) {
+          SkOpSpan* spanStart = start->starter(end);
+          if (!spanStart->done()) {
+              return false;
+          }
+      }
+      writer->finishContour();
+      SkPathOpsDebug::ShowActiveSpans(contourList);
+  } while (true);
+  return true;
+}
+
+OpSpan? findSortableTop(List<OpContour> contourList) {
+  for (int index = 0; index < OpGlobalState.kMaxWindingTries; ++index) {
+    for (OpContour contour in contourList) {
+      if (contour.done) {
+        continue;
+      }
+      OpSpan result = contour.findSortableTop(contourList);
+      if (result != null) {
+        return result;
+      }
+    };
+  }
+  return null;
 }
 
 /// Returns path operation for a pair of paths using inverse fill types.
@@ -451,54 +683,53 @@ bool _op(SurfacePath one, SurfacePath two, int op, SurfacePath result) {
   }
 
   // Handle general case.
-  // TODO PATH
-  throw UnimplementedError();
-//
-//  SkOpContour contour;
-//  SkOpContourHead* contourList = static_cast<SkOpContourHead*>(&contour);
-//  SkOpGlobalState globalState(contourList, &allocator
-//          SkDEBUGPARAMS(skipAssert) SkDEBUGPARAMS(testName));
-//  SkOpCoincidence coincidence(&globalState);
-//
-//  const SkPath* minuend = &one;
-//  const SkPath* subtrahend = &two;
-//  if (op == kReverseDifference_SkPathOp) {
-//      using std::swap;
-//      swap(minuend, subtrahend);
-//      op = kDifference_SkPathOp;
-//  }
-//  // turn path into list of segments
-//  SkOpEdgeBuilder builder(*minuend, contourList, &globalState);
-//  if (builder.unparseable()) {
-//      return false;
-//  }
-//  const int xorMask = builder.xorMask();
-//  builder.addOperand(*subtrahend);
-//  if (!builder.finish()) {
-//      return false;
-//  }
-//  // Segments are ready.
-//  const int xorOpMask = builder.xorMask();
-//  if (!SortContourList(&contourList, xorMask == kEvenOdd_PathOpsMask,
-//          xorOpMask == kEvenOdd_PathOpsMask)) {
-//      result->reset();
-//      result->setFillType(fillType);
-//      return true;
-//  }
-//  // Find all intersections between segments
-//  SkOpContour* current = contourList;
-//  do {
-//      SkOpContour* next = current;
-//      while (AddIntersectTs(current, next, &coincidence)
-//              && (next = next->next()))
-//          ;
-//  } while ((current = current->next()));
-//  // Start walking.
-//  bool success = HandleCoincidence(contourList, &coincidence);
-//  if (!success) {
-//    return false;
-//  }
-//  // construct closed contours
+  OpGlobalState globalState = OpGlobalState();
+  OpCoincidence coincidence = OpCoincidence(globalState);
+
+  SurfacePath minuend = one;
+  SurfacePath subtrahend = two;
+  if (op == PathOp.kReverseDifference) {
+    minuend = two;
+    subtrahend = one;
+    op = PathOp.kDifference;
+  }
+  // Turn path into list of segments.
+  OpEdgeBuilder builder = OpEdgeBuilder(minuend, globalState);
+  if (builder.unparseable) {
+    return false;
+  }
+  // Cache mask for first operand.
+  int xorMask = builder.xorMask;
+  builder.add(subtrahend);
+  if (!builder.finish()) {
+    return false;
+  }
+  // Segments are ready.
+  List<OpContour> contourList = builder.contourList;
+  int xorOpMask = builder.xorMask;
+  contourList = _sortContourList(contourList, xorMask == SPathOpsMask.kEvenOdd,
+          xorOpMask == SPathOpsMask.kEvenOdd);
+  if (contourList.isEmpty) {
+    result.reset();
+    result._fillType = fillType;
+    return true;
+  }
+  // Find all intersections between segments
+  for (int i = 0, len = contourList.length - 1; i < len; i++) {
+    for (int j = i + 1; j < contourList.length; ++j) {
+      OpContour current = contourList[i];
+      OpContour next = contourList[j];
+      addIntersectTs(current, next, coincidence);
+    }
+  }
+  // Start walking.
+  globalState.phase = OpPhase.kWalking;
+  bool success = handleCoincidence(contourList, coincidence, globalState);
+  if (!success) {
+    return false;
+  }
+  // TODO:
+  // Construct closed contours.
 //  SkPath original = *result;
 //  result->reset();
 //  result->setFillType(fillType);
@@ -508,6 +739,9 @@ bool _op(SurfacePath one, SurfacePath two, int op, SurfacePath result) {
 //      return false;
 //  }
 //  wrapper.assemble();  // if some edges could not be resolved, assemble remaining
+
+  throw UnimplementedError();
+
   return true;
 }
 
@@ -515,6 +749,27 @@ class OpGlobalState {
   OpCoincidence? _fCoincidence;
   /// Used to call fixUp when an [OpSpan] is released.
   OpCoincidence? get coincidence => _fCoincidence;
+
+  OpPhase phase = OpPhase.kIntersecting;
+  static const int kMaxWindingTries = 10;
+
+  // Used by fixWinding step. Keeps track of sortable top count.
+  int fNested = 0;
+
+  void bumpNested() {
+    ++fNested;
+  }
+
+  void clearNested() {
+    fNested = 0;
+  }
+
+  int nested() => fNested;
+
+  void setWindingFailed() {
+    _windingFailed = true;
+  }
+  bool _windingFailed = false;
 }
 
 abstract class SPathOpsMask {
@@ -540,7 +795,7 @@ enum OpPhase {
 ///
 /// Typical usage:
 ///     builder = OpEdgeBuilder(path1, globalState);
-///     builder.addOperand(path2); // Not all union.
+///     builder.add(path2); // Not all union.
 ///     builder.finish();
 ///
 ///  Path1 is considered firstHalf of contours, operand secondHalf. Based
@@ -553,12 +808,12 @@ class OpEdgeBuilder {
     init();
   }
 
-  final SurfacePath path;
+  /// Active operand.
+  SurfacePath path;
   final OpGlobalState globalState;
   final OpContourBuilder contourBuilder;
   final List<OpContour> contourList = [];
-  OpContour? fContoursHead;
-  List<int> fXorMask = [SPathOpsMask.kNo_Path, SPathOpsMask.kNo_Path];
+  List<int> _xorMask = [SPathOpsMask.kNo_Path, SPathOpsMask.kNo_Path];
 
   // Sanitized path result from preFetch step.
   // Used as source data for walk phase.
@@ -566,21 +821,30 @@ class OpEdgeBuilder {
 
   // Verbs end index set by preFetch.
   int? fSecondHalf;
+  /// True if [OpEdgeBuilder] is processing (walking) second operand of
+  /// path operation.
   bool fOperand = false;
   bool allowOpenContours;
-  bool fUnparseable = false;
+  // Indicates that path is invalid and can't be walked.
+  //
+  // Set during initialization preFetch.
+  bool _unparseable = false;
+
+  /// Returns xor mask for first or second operand of path operation based
+  /// on which walking phase [OpEdgeBuilder] is in.
+  int get xorMask => _xorMask[fOperand ? 1 : 0];
 
   void init() {
     fOperand = false;
-    fXorMask[0] = fXorMask[1] = (path._fillType & 1) != 0
+    _xorMask[0] = _xorMask[1] = (path._fillType & 1) != 0
         ? SPathOpsMask.kEvenOdd : SPathOpsMask.kWinding;
-    fUnparseable = false;
+    _unparseable = false;
     fSecondHalf = _preFetch();
   }
 
   int _preFetch() {
     if (!path.isFinite) {
-      fUnparseable = true;
+      _unparseable = true;
       return 0;
     }
     final PathRefIterator iter = PathRefIterator(path.pathRef);
@@ -705,14 +969,27 @@ class OpEdgeBuilder {
     _activePath.growForVerb(SPathVerb.kClose, 0);
   }
 
+  void add(SurfacePath operand) {
+    assert(_activePath.countVerbs() > 0 &&
+        _activePath.atVerb(_activePath.countVerbs() - 1) == SPath.kDoneVerb);
+    _activePath.removeLastVerb();
+    path = operand;
+    _xorMask[1] = (path._fillType & 1) != 0
+        ? SPathOpsMask.kEvenOdd : SPathOpsMask.kWinding;
+    _preFetch();
+  }
+
   bool finish() {
     fOperand = false;
-    if (fUnparseable || !_walk()) {
+    if (_unparseable || !_walk()) {
       return false;
     }
     complete();
     return true;
   }
+
+  /// Whether path has finite segments and is walkable.
+  bool get unparseable => _unparseable;
 
   bool _walk() {
     int verb = 0;
@@ -737,7 +1014,7 @@ class OpEdgeBuilder {
             contourList.add(contour);
             // If verbs are part of secondHalf, mark the contour as operand.
             contour.init(fOperand,
-                fXorMask[fOperand ? 1 : 0] == SPathOpsMask.kEvenOdd);
+                _xorMask[fOperand ? 1 : 0] == SPathOpsMask.kEvenOdd);
             continue;
         case SPathVerb.kLine:
             contourBuilder.addLine(points);
@@ -916,6 +1193,12 @@ class OpEdgeBuilder {
     complete();
     return true;
   }
+
+  void joinAllSegments() {
+    for (int i = 0, len = contourList.length; i < len; i++) {
+      contourList[i].joinSegments();
+    }
+  }
 }
 
 double _forceSmallToZero(double value) =>
@@ -947,4 +1230,144 @@ List<OpContour> _sortContourList(List<OpContour> contourList, bool evenOdd, bool
         : SPath.scalarSignedAsInt(bounds1.top - bounds2.top);
   });
   return sortedList;
+}
+
+bool _moveMultiples(List<OpContour> contourList) {
+  for (OpContour contour in contourList) {
+    if (!contour.moveMultiples()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _moveNearby(List<OpContour> contourList) {
+  for (OpContour contour in contourList) {
+    if (!contour.moveNearby()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool handleCoincidence(List<OpContour> contourList, OpCoincidence coincidence, OpGlobalState globalState) {
+  // Match up points within the coincident runs
+  globalState.phase = OpPhase.kIntersecting;
+  if (!coincidence.addExpanded()) {
+    return false;
+  }
+  // Combine t values when multiple intersections occur on some segments but
+  // not others.
+  globalState.phase = OpPhase.kWalking;
+  if (!_moveMultiples(contourList)) {
+      return false;
+  }
+  // Move t values and points together to eliminate small/tiny gaps.
+  if (!_moveNearby(contourList)) {
+    return false;
+  }
+  // Add coincidence formed by pairing on curve points and endpoints.
+  globalState.phase = OpPhase.kIntersecting;
+  coincidence.correctEnds();
+  if (!coincidence.addEndMovedSpans()) {
+      return false;
+  }
+  const int kSafetyCount = 3;
+  int safetyHatch = kSafetyCount;
+  // look for coincidence present in A-B and A-C but missing in B-C
+  do {
+    int res = coincidence.addMissing();
+    bool added;
+    if (res == OpCoincidence.kAddMissingFailed) {
+      return false;
+    }
+    if (res != OpCoincidence.kAddMissingSuccessAndAdded) {
+      break;
+    }
+    if (0 == --safetyHatch) {
+      return false;
+    }
+    _moveNearby(contourList);
+  } while (true);
+  // Check to see if, loosely, coincident ranges may be expanded.
+  if (coincidence.expand()) {
+    int res = coincidence.addMissing();
+    if (res == OpCoincidence.kAddMissingFailed) {
+      return false;
+    }
+    if (!coincidence.addExpanded()) {
+      return false;
+    }
+    if (!_moveMultiples(contourList)) {
+      return false;
+    }
+    _moveNearby(contourList);
+  }
+  // The expanded ranges may not align -- add the missing spans.
+  globalState.phase = OpPhase.kWalking;
+  if (!coincidence.addExpanded()) {
+    return false;
+  }
+  // Mark spans of coincident segments as coincident.
+  coincidence.mark(OpPhase.kWalking);
+  // Look for coincidence lines and curves undetected by intersection.
+  if (_missingCoincidence(contourList)) {
+      coincidence.expand();
+      if (!coincidence.addExpanded()) {
+          return false;
+      }
+      if (!coincidence.mark(OpPhase.kWalking)) {
+          return false;
+      }
+  } else {
+    coincidence.expand();
+  }
+  coincidence.expand();
+
+  OpCoincidence overlaps = OpCoincidence(globalState);
+  safetyHatch = kSafetyCount;
+  do {
+    OpCoincidence pairs = overlaps.isEmpty ? coincidence : overlaps;
+    // adjust the winding value to account for coincident edges
+    if (!pairs.apply()) {
+        return false;
+    }
+    // For each coincident pair that overlaps another, when the receivers (the 1st of the pair)
+    // are different, construct a new pair to resolve their mutual span
+    if (!pairs.findOverlaps(overlaps)) {
+        return false;
+    }
+    if (0 == --safetyHatch) {
+      return false;
+    }
+  } while (!overlaps.isEmpty);
+  _calcAngles(contourList);
+  if (!_sortAngles(contourList)) {
+    return false;
+  }
+  coincidence.debugValidate();
+  return true;
+}
+
+void _calcAngles(List<OpContour> contourList) {
+  for (OpContour contour in contourList) {
+    contour.calcAngles();
+  }
+}
+
+bool _sortAngles(List<OpContour> contourList) {
+  for (OpContour contour in contourList) {
+    if (!contour.sortAngles()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _missingCoincidence(List<OpContour> contourList) {
+  bool result = false;
+  for (OpContour contour in contourList) {
+    result |= contour.missingCoincidence();
+  }
+  return result;
 }

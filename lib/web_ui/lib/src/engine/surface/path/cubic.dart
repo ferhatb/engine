@@ -19,6 +19,8 @@ class Cubic {
         points[5], points[6], points[7]);
   }
 
+  Cubic clone() => Cubic(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y);
+
   Float32List toPoints() {
     final Float32List points = Float32List(8);
     points[0] = p0x;
@@ -30,6 +32,19 @@ class Cubic {
     points[6] = p3x;
     points[7] = p3y;
     return points;
+  }
+
+  void offset(ui.Offset offset) {
+    final double dx = offset.dx;
+    final double dy = offset.dy;
+    p0x += dx;
+    p1x += dx;
+    p2x += dx;
+    p3x += dx;
+    p0y += dy;
+    p1y += dy;
+    p2y += dy;
+    p3y += dy;
   }
 
   /// Checks if cubic points collapse to a point.
@@ -96,27 +111,25 @@ class Cubic {
   /// Cubic point x at curve point [index].
   double xAt(int index) => index == 0 ? p0x : (index == 1 ? p1x : index == 2 ? p2x : p3x);
   double yAt(int index) => index == 0 ? p0y : (index == 1 ? p1y : index == 2 ? p2y : p3y);
-  void setXAt(int index, double x) {
-    if (index == 0) {
-      p0x = x;
-    } else if (index == 1) {
-      p1x = x;
-    } else if (index == 2) {
-      p2x = x;
-    } else {
-      p3x = x;
-    }
-  }
 
-  void setYAt(int index, double y) {
-    if (index == 0) {
-      p0y = y;
-    } else if (index == 1) {
-      p1y = y;
-    } else if (index == 2) {
-      p2y = y;
-    } else {
-      p3y = y;
+  void setPoint(int pointIndex, double x, double y) {
+    switch(pointIndex) {
+      case 0:
+        p0x = x;
+        p0y = y;
+        break;
+      case 1:
+        p1x = x;
+        p1y = y;
+        break;
+      case 2:
+        p2x = x;
+        p2y = y;
+        break;
+      case 3:
+        p3x = x;
+        p3y = y;
+        break;
     }
   }
 
@@ -714,12 +727,12 @@ class Cubic {
     return 4;
   }
 
-  // Returns 0 if negative, 1 if zero, 2 if positive
-  static int side(double x) => ((x > 0) ? 1 : 0) + (x >= 0 ? 1 : 0);
-
   double _distanceSquared(int pointIndex1, int pointIndex2) =>
       distanceSquared(xAt(pointIndex1), yAt(pointIndex1), xAt(pointIndex2),
           yAt(pointIndex2));
+
+  // Returns 0 if negative, 1 if zero, 2 if positive
+  static int side(double x) => ((x > 0) ? 1 : 0) + (x >= 0 ? 1 : 0);
 }
 
 Cubic? rotate(Cubic cubic, int zero, int index) {
@@ -733,22 +746,22 @@ Cubic? rotate(Cubic cubic, int zero, int index) {
     rotPath = Cubic(cubic.p0x, cubic.p0y, cubic.p1x, cubic.p1y,
         cubic.p2x, cubic.p2y, cubic.p3x, cubic.p3y);
     if (dy != 0) {
-      rotPath.setYAt(index, cubic.yAt(zero));
+      rotPath.setPoint(index, rotPath.xAt(index), cubic.yAt(zero));
       int mask = otherTwo(index, zero);
       int side1 = index ^ mask;
       int side2 = zero ^ mask;
       if (approximatelyEqualT(cubic.yAt(side1), cubic.yAt(zero))) {
-        rotPath.setYAt(side1, cubic.yAt(zero));
+        rotPath.setPoint(side1, rotPath.xAt(side1), cubic.yAt(zero));
       }
       if (approximatelyEqualT(cubic.yAt(side2), cubic.yAt(zero))) {
-        rotPath.setYAt(side2, cubic.yAt(zero));
+        rotPath.setPoint(side2, rotPath.xAt(side2), cubic.yAt(zero));
       }
     }
     return rotPath;
   }
   for (int index = 0; index < 4; ++index) {
-    rotPath?.setXAt(index, cubic.xAt(index) * dx + cubic.yAt(index) * dy);
-    rotPath?.setYAt(index, cubic.yAt(index) * dx - cubic.xAt(index) * dy);
+    rotPath?.setPoint(index, cubic.xAt(index) * dx + cubic.yAt(index) * dy,
+        cubic.yAt(index) * dx - cubic.xAt(index) * dy);
   }
   return rotPath;
 }

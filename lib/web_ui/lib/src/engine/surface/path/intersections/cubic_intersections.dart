@@ -156,7 +156,7 @@ class LineCubicIntersections {
       return i.fUsed;
   }
 
-  static int _horizontalIntersect(Cubic c, double axisIntercept, List<double> roots) {
+  static int computeHorizontalIntersect(Cubic c, double axisIntercept, List<double> roots) {
     _CubicCoeff coeff = _CubicCoeff(c.p0y, c.p1y, c.p2y, c.p3y);
     double A = coeff.A;
     double B = coeff.B;
@@ -182,7 +182,7 @@ class LineCubicIntersections {
       _addNearHorizontalEndPoints(left, right, axisIntercept);
     }
     List<double> roots = [];
-    int count = _horizontalIntersect(cubic, axisIntercept, roots);
+    int count = computeHorizontalIntersect(cubic, axisIntercept, roots);
     for (int index = 0; index < count; ++index) {
       double cubicT = roots[index];
       ui.Offset pt = ui.Offset(cubic.ptAtT(cubicT).dx, axisIntercept);
@@ -223,7 +223,7 @@ class LineCubicIntersections {
     return true;
   }
 
-  static int _verticalIntersect(Cubic c, double axisIntercept, List<double> roots) {
+  static int computeVerticalIntersect(Cubic c, double axisIntercept, List<double> roots) {
     _CubicCoeff coeff = _CubicCoeff(c.p0x, c.p1x, c.p2x, c.p3x);
     double A = coeff.A;
     double B = coeff.B;
@@ -249,7 +249,7 @@ class LineCubicIntersections {
         _addNearVerticalEndPoints(top, bottom, axisIntercept);
       }
       List<double> roots = [];
-      int count = _verticalIntersect(cubic, axisIntercept, roots);
+      int count = computeVerticalIntersect(cubic, axisIntercept, roots);
       for (int index = 0; index < count; ++index) {
         double cubicT = roots[index];
         ui.Offset pt = ui.Offset(axisIntercept, cubic.ptAtT(cubicT).dy);

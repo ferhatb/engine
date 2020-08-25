@@ -5,6 +5,84 @@
 // @dart = 2.10
 part of engine;
 
+/// Find the interection of a line and quadratic by solving for valid t values.
+/// From http://stackoverflow.com/questions/1853637/how-to-find-the-mathematical-function-defining-a-bezier-curve
+///
+/// "A Bezier curve is a parametric function. A quadratic Bezier curve
+/// (i.e. three control points) can be expressed as:
+///
+/// F(t) = A(1 - t)^2 + B(1 - t)t + Ct^2 where
+///
+/// A, B and C are points and t goes from zero to one.
+///
+///
+/// This will give you two equations:
+///
+///  x = a(1 - t)^2 + b(1 - t)t + ct^2
+///  y = d(1 - t)^2 + e(1 - t)t + ft^2
+///
+/// If you add for instance the line equation (y = kx + m) to that,
+/// you'll end up with three equations and three unknowns (x, y and t)."
+///
+/// Similar to above, the quadratic is represented as
+///  x = a(1-t)^2 + 2b(1-t)t + ct^2
+///  y = d(1-t)^2 + 2e(1-t)t + ft^2
+///  and the line as y = g*x + h
+///
+/// Using Mathematica, solve for the values of t where the quadratic intersects
+/// the line:
+///
+///  (in)  t1 = Resultant[a*(1 - t)^2 + 2*b*(1 - t)*t + c*t^2 - x,
+///                       d*(1 - t)^2 + 2*e*(1 - t)*t  + f*t^2 - g*x - h, x]
+///  (out) -d + h + 2 d t - 2 e t - d t^2 + 2 e t^2 - f t^2 +
+///         g  (a - 2 a t + 2 b t + a t^2 - 2 b t^2 + c t^2)
+///  (in)  Solve[t1 == 0, t]
+///  (out) {
+///    {t -> (-2 d + 2 e +   2 a g - 2 b g    -
+///      Sqrt[(2 d - 2 e -   2 a g + 2 b g)^2 -
+///          4 (-d + 2 e - f + a g - 2 b g    + c g) (-d + a g + h)]) /
+///         (2 (-d + 2 e - f + a g - 2 b g    + c g))
+///         },
+///    {t -> (-2 d + 2 e +   2 a g - 2 b g    +
+///      Sqrt[(2 d - 2 e -   2 a g + 2 b g)^2 -
+///          4 (-d + 2 e - f + a g - 2 b g    + c g) (-d + a g + h)]) /
+///         (2 (-d + 2 e - f + a g - 2 b g    + c g))
+///         }
+///        }
+///
+/// Using the results above (when the line tends towards horizontal)
+///       A =   (-(d - 2*e + f) + g*(a - 2*b + c)     )
+///       B = 2*( (d -   e    ) - g*(a -   b    )     )
+///       C =   (-(d          ) + g*(a          ) + h )
+///
+/// If g goes to infinity, we can rewrite the line in terms of x.
+/// x = g'*y + h'
+///
+/// And solve accordingly in Mathematica:
+///
+///  (in)  t2 = Resultant[a*(1 - t)^2 + 2*b*(1 - t)*t + c*t^2 - g'*y - h',
+///                       d*(1 - t)^2 + 2*e*(1 - t)*t  + f*t^2 - y, y]
+///  (out)  a - h' - 2 a t + 2 b t + a t^2 - 2 b t^2 + c t^2 -
+///         g'  (d - 2 d t + 2 e t + d t^2 - 2 e t^2 + f t^2)
+///  (in)  Solve[t2 == 0, t]
+///  (out) {
+///    {t -> (2 a - 2 b -   2 d g' + 2 e g'    -
+///    Sqrt[(-2 a + 2 b +   2 d g' - 2 e g')^2 -
+///          4 (a - 2 b + c - d g' + 2 e g' - f g') (a - d g' - h')]) /
+///         (2 (a - 2 b + c - d g' + 2 e g' - f g'))
+///         },
+///    {t -> (2 a - 2 b -   2 d g' + 2 e g'    +
+///    Sqrt[(-2 a + 2 b +   2 d g' - 2 e g')^2 -
+///          4 (a - 2 b + c - d g' + 2 e g' - f g') (a - d g' - h')])/
+///         (2 (a - 2 b + c - d g' + 2 e g' - f g'))
+///         }
+///        }
+///
+/// Thus, if the slope of the line tends towards vertical, we use:
+///       A =   ( (a - 2*b + c) - g'*(d  - 2*e + f)      )
+///       B = 2*(-(a -   b    ) + g'*(d  -   e    )      )
+///       C =   ( (a          ) - g'*(d           ) - h' )
+///
 class LineQuadraticIntersections {
   final Intersections i;
   final Quad quad;
@@ -106,7 +184,7 @@ class LineQuadraticIntersections {
       _addNearHorizontalEndPoints(left, right, axisIntercept);
     }
     List<double> rootVals = [];
-    int roots = computeHorizontalIntersect(axisIntercept, rootVals);
+    int roots = computeHorizontalIntersect(quadPoints, axisIntercept, rootVals);
     for (int index = 0; index < roots; ++index) {
       double quadT = rootVals[index];
       ui.Offset pt = Quad(quadPoints).ptAtT(quadT);
@@ -128,7 +206,7 @@ class LineQuadraticIntersections {
     return i.fUsed;
   }
 
-  int _verticalIntersect(double axisIntercept, List<double> roots) {
+  static int computeVerticalIntersect(Float32List quadPoints, double axisIntercept, List<double> roots) {
     double D = quadPoints[4];  // f
     double E = quadPoints[2];  // e
     double F = quadPoints[0];  // d
@@ -144,7 +222,7 @@ class LineQuadraticIntersections {
           _addNearVerticalEndPoints(top, bottom, axisIntercept);
       }
       List<double> roots = [];
-      int count = _verticalIntersect(axisIntercept, roots);
+      int count = computeVerticalIntersect(quadPoints, axisIntercept, roots);
       for (int index = 0; index < count; ++index) {
         double quadT = roots[index];
         ui.Offset pt = quad.ptAtT(quadT);
@@ -347,7 +425,8 @@ class LineQuadraticIntersections {
     return true;
   }
 
-  int computeHorizontalIntersect(double axisIntercept, List<double> roots) {
+  static int computeHorizontalIntersect(Float32List quadPoints,
+      double axisIntercept, List<double> roots) {
     double D = quadPoints[5];  // f
     double E = quadPoints[3];  // e
     double F = quadPoints[1];  // d
@@ -469,14 +548,14 @@ class LineConicIntersections {
     }
   }
 
-  int _horizontalIntersect(double axisIntercept, List<double> roots) {
-    return validT(conic.p0y, conic.p1y, conic.p2y, axisIntercept, roots);
+  static int computeHorizontalIntersect(Conic conic, double axisIntercept, List<double> roots) {
+    return validT(conic.p0y, conic.p1y, conic.p2y, conic.fW, axisIntercept, roots);
   }
 
   /// Find T and roots for intersection at axis with conic.
-  int validT(double r0, double r1, double r2, double axisIntercept, List<double> roots) {
+  static int validT(double r0, double r1, double r2, double weight, double axisIntercept, List<double> roots) {
     double A = r2;
-    double B = r1 * conic.fW - axisIntercept * conic.fW + axisIntercept;
+    double B = r1 * weight - axisIntercept * weight + axisIntercept;
     double C = r0;
     A += C - 2 * B;  // A = a + c - 2*(b*w - xCept*w + xCept)
     B -= C;  // B = b*w - w * xCept + xCept - a
@@ -516,7 +595,7 @@ class LineConicIntersections {
     double r0 = (conic.p0y - lineY) * adj - (conic.p0x - lineX) * opp;
     double r1 = (conic.p1y - lineY) * adj - (conic.p1x - lineX) * opp;
     double r2 = (conic.p2y - lineY) * adj - (conic.p2x - lineX) * opp;
-    return validT(r0, r1, r2, 0, roots);
+    return validT(r0, r1, r2, conic.fW, 0, roots);
   }
 
   /// Given conic t, find t for line at same point.
@@ -538,7 +617,7 @@ class LineConicIntersections {
       addNearHorizontalEndPoints(left, right, axisIntercept);
     }
     List<double> roots = [];
-    int count = _horizontalIntersect(axisIntercept, roots);
+    int count = computeHorizontalIntersect(conic, axisIntercept, roots);
     for (int index = 0; index < count; ++index) {
       double conicT = roots[index];
       ui.Offset pt = conic.ptAtT(conicT);
@@ -559,8 +638,8 @@ class LineConicIntersections {
     return i.fUsed;
   }
 
-  int _verticalIntersect(double axisIntercept, List<double> roots) {
-    return validT(conic.p0x, conic.p1x, conic.p2x, axisIntercept, roots);
+  static int computeVerticalIntersect(Conic conic, double axisIntercept, List<double> roots) {
+    return validT(conic.p0x, conic.p1x, conic.p2x, conic.fW, axisIntercept, roots);
   }
 
   int verticalIntersect(double axisIntercept, double top, double bottom, bool flipped) {
@@ -569,7 +648,7 @@ class LineConicIntersections {
       addNearVerticalEndPoints(top, bottom, axisIntercept);
     }
     List<double> roots = [];
-    int count = _verticalIntersect(axisIntercept, roots);
+    int count = computeVerticalIntersect(conic, axisIntercept, roots);
     for (int index = 0; index < count; ++index) {
       double conicT = roots[index];
       ui.Offset pt = conic.ptAtT(conicT);

@@ -121,6 +121,12 @@ class PathRef {
     return _fVerbs[index];
   }
 
+  /// Removes last kDone verb.
+  void removeLastVerb() {
+    assert(_fVerbs[_fVerbsLength - 1] == SPath.kDoneVerb);
+    --_fVerbsLength;
+  }
+
   ui.Offset atPoint(int index) {
     return ui.Offset(_fPoints[index * 2], _fPoints[index * 2 + 1]);
   }

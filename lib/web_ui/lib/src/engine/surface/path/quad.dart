@@ -20,12 +20,30 @@ class Quad {
 
   double yAt(int index) => points[index * 2 + 1];
 
+  void setPoint(int pointIndex, double x, double y) {
+    points[pointIndex * 2] = x;
+    points[pointIndex * 2 + 1] = y;
+  }
+
   /// Checks if quadratic points collapse to a single point.
   bool collapsed() =>
       approximatelyEqualPoints(points[0], points[1], points[4], points[5]) &&
           approximatelyEqualPoints(points[0], points[1], points[2], points[3]);
 
   bool controlsInside() => controlsInsideQuad(points);
+
+  Quad clone() => Quad(Float32List(kPointCount)..setAll(0, points));
+
+  void offset(ui.Offset offset) {
+    final double dx = offset.dx;
+    final double dy = offset.dy;
+    points[5] += dy;
+    points[0] += dx;
+    points[2] += dx;
+    points[4] += dx;
+    points[1] += dy;
+    points[3] += dy;
+  }
 
   /// Checks if control points are inside.
   static bool controlsInsideQuad(Float32List points) {
