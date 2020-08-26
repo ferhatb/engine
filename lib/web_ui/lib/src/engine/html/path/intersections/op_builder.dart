@@ -25,6 +25,9 @@ class PathOp {
 ///   opBuilder.add(path1, PathOp.kUnion);
 ///   opBuilder.add(path2, PathOp.kUnion);
 ///   success = opBuilder.resolve(targetPath);
+///
+/// Deep dive: https://www.youtube.com/watch?v=OmfliNQsk88
+///
 class OpBuilder {
   OpGlobalState globalState;
 
